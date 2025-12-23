@@ -38,9 +38,27 @@ class Automaton:
         for (src, sym), dst in self.transitions.items():
             dot.edge(src, dst, label=sym)
 
-        dot.render(filename, format="png", view=True)
+        # Return SVG (as UTF-8 string)
+        return dot.pipe(format="svg").decode("utf-8")
 
-        return dot
+
+def parse_equations(text):
+    """
+    Example: converts text like:
+         A = aA + bB + ε
+         B = aA
+    into:
+         {"A": ["aA","bB","ε"], "B": ["aA"]}
+    """
+    eq = {}
+    for line in text.split("\n"):
+        if "=" not in line:
+            continue
+        left, right = line.split("=")
+        var = left.strip()
+        terms = [t.strip() for t in right.split("+")]
+        eq[var] = terms
+    return eq
 
 
 def arden_to_automata(equations: dict[str, list[str]]):
@@ -51,37 +69,38 @@ def arden_to_automata(equations: dict[str, list[str]]):
     transitions = {}
 
     # build transitions and accepting states
-    # epsilon gives acceptance
     for var, terms in equations.items():
+        # epsilon gives acceptance
         if "ε" in terms or "epsilon" in terms:
             accepting_states.add(var)
 
-    # terminal symbols extend acceptance to destinations
-    for var, terms in equations.items():
-
+        # terminal symbols extend acceptance to destinations
         # find all single-letter terminal terms in this var
         terminal_symbols = [t for t in terms if len(t) == 1]
 
         for term in terms:
-            if len(term) == 2:  # symbol + destination
+            if term in ("ε", "epsilon"):
+                continue
+            elif len(term) == 2:  # symbol + destination
                 symbol, dest = term[0], term[1]
+                transitions[(var, symbol)] = dest
                 # if symbol appears as a terminal term, dest must be accepting
                 if symbol in terminal_symbols:
                     accepting_states.add(dest)
 
-    #  build transitions
-    for var, terms in equations.items():
-        for term in terms:
-            if term in ("ε", "epsilon"):
-                continue
-            elif len(term) == 2:
-                symbol = term[0]
-                dest = term[1]
-                transitions[(var, symbol)] = dest
-
     return Automaton(states, start_state, accepting_states, transitions)
 
 
+"""
+# test code
+# test parsing equations to dict
+arden_eq_text = "A = aA + bB + ε\nB = aA + bA"
+parsed_eq = parse_equations(arden_eq_text)
+dict_eq = arden_to_automata(parsed_eq)
+dict_eq.plot()
+"""
+
+"""
 # Example usage:
 equations = {
     'A': ['aA', 'bB', 'b'],
@@ -91,4 +110,4 @@ automaton = arden_to_automata(equations)
 print(automaton.transitions)
 print(automaton.start)
 print(automaton.accepting)
-automaton.plot("arden_automaton")
+automaton.plot("arden_automaton")"""

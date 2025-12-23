@@ -167,11 +167,11 @@ def expand_regex(expr: str):
     expanded = sp.expand(algebra)
     return from_sympy(expanded)
 
-
+"""
 ## make this a main method for testing
 if __name__ == "__main__":
     ##dictionary for the entry equations
-    """equations_test = {
+    equations_test = {
         "A": ["bB", "ε"],
         "B": ["aA", "aB"],
         "C": ["bC", "cD"],
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     
       exp = "a(b + c)d"
 
-    print(expand_regex(exp))"""
+    print(expand_regex(exp))
 
     equations = {
         "A": ["aB"],
@@ -196,6 +196,7 @@ if __name__ == "__main__":
     }
     regex = arden_to_regex(equations)
     print(f"Final Regex: {regex}")
+    """
 
 """
 def extract_syms(terms_str):
