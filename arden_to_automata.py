@@ -1,5 +1,4 @@
 from graphviz import Digraph
-
 """
 Input are Equations in Arden's form
     return is an equivalent Finite Automaton
@@ -21,7 +20,7 @@ class Automaton:
     def add_transition(self, src, symbol, dst):
         self.transitions[(src, symbol)] = dst
 
-    def plot(self, filename="automaton"):
+    def plot(self):
         dot = Digraph()
         dot.attr(rankdir="LR")
 

@@ -29,6 +29,12 @@ print("after: ", a)
 
 ##draw_dfa(mindfa, "min_dfa_from_regex.png")
 
+"""
+
+#lange bis es berechnet wurde
+min_dfa = dfa_to_efficient_dfa(nfa_to_dfa(regex_to_nfa("abb*c*")))
+"""
+
 
 
 
