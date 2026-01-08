@@ -1,29 +1,131 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Automata Tool</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
-    <h1>Automata Construction Tool</h1>
+<body class="container-fluid mt-4">
+
+<h1 class="text-center mb-4">Compute Semigroup</h1>
+
+<div class="row">
+    <!-- LEFT: INPUT -->
+    <div class="col-md-6 mx-auto">
+        <form action="/process" method="POST">
+
+            <label for="mode" style="font-size: 1.25rem;">Choose Input Type:</label>
+            <select id="mode" name="mode" class="form-select mb-3" style="font-size: 1.15rem;">
+
+                <option value="regex">Regular Expression</option>
+                <option value="arden">Arden Equations</option>
+            </select>
+
+            <div class="row mt-4">
+                <div class="d-flex justify-content-center">
+                    <div class="col-md-5">
+
+                        <label for="user_input"
+                               class="fw-semibold mb-2 d-block text-center"
+                               style="font-size: 1.25rem;">
+                            Input:
+                        </label>
+
+                        <textarea
+                                id="user_input"
+                                name="user_input"
+                                rows="8"
+                                class="form-control font-monospace"
+                                style="font-size: 1.10rem;"
+                                placeholder="Enter regex or equations here..."
+                        >{{ user_input or "" }}</textarea>
+
+                    </div>
+                </div>
+
+
+                <!-- ARDEN HELP BOX -->
+                <div class="col-md-7">
+                    <div
+                            id="arden-help"
+                            class="border rounded p-3 bg-light fs-4"
+                            style="display: none;font-size: 1.2rem;"
+                    >
+                        <h4>Arden Equation Format</h4>
+                        <pre class="mb-0">
+A = aA + bB + ε
+B = aA
+            </pre>
+                        <small class="text-muted">
+                            One equation per line. Use "ε" or "epsilon" for the empty word.
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary" style="font-size: 1.10rem;">Compute</button>
+            </div>
+        </form>
+
+        {% if error %}
+        <div class="alert alert-danger mt-3">
+            {{ error }}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- RIGHT: RESULT -->
+    <div class="col-md-6">
+        {% if svg %}
+        <h3>Syntactic Monoid</h3>
+        <div class="border p-2 bg-light">
+            {{ svg|safe }}
+        </div>
+         <!-- ✅ EQUATION INPUT APPEARS HERE -->
+    <hr>
+
+    <h4 class="mt-3">Check an Equation</h4>
 
     <form action="/process" method="POST">
+        <!-- keep previous input -->
+        <input type="hidden" name="mode" value="{{ request.form.mode }}">
+        <input type="hidden" name="user_input" value="{{ user_input }}">
 
-        <label for="mode">Choose Input Type:</label><br>
-        <select id="mode" name="mode">
-            <option value="regex">Regular Expression</option>
-            <option value="arden">Arden Equations</option>
-        </select>
+        <input
+            type="text"
+            name="equation"
+            class="form-control font-monospace mt-2"
+            placeholder="e.g. x^3 y z^2 = z y x^3"
+            value="{{ equation or '' }}"
+        >
 
-        <br><br>
-
-        <label for="user_input">Enter Input:</label><br>
-        <textarea id="user_input" name="user_input" rows="6" cols="60"
-         placeholder="Enter regex or equations here..."></textarea>
-
-        <br><br>
-        <button type="submit">Compute</button>
+        <button type="submit" class="btn btn-secondary mt-2">
+            Check equation
+        </button>
     </form>
 
+    {% if equation_result %}
+    <div class="alert alert-info mt-3">
+        <pre class="mb-0">{{ equation_result }}</pre>
+    </div>
+    {% endif %}
+
+    {% endif %}
+    </div>
+</div>
+
+<script>
+    const modeSelect = document.getElementById("mode");
+    const ardenHelp = document.getElementById("arden-help");
+
+    function toggleArdenHelp() {
+        if (modeSelect.value === "arden") {
+            ardenHelp.style.display = "block";
+        } else {
+            ardenHelp.style.display = "none";
+        }
+    }
+
+    // Run on change
+    modeSelect.addEventListener("change", toggleArdenHelp);
+
+    // Run on page load (important when form is submitted)
+    toggleArdenHelp();
+</script>
+
 </body>
-</html>
