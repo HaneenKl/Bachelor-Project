@@ -2,7 +2,9 @@ from pyformlang import regular_expression
 
 from libsemigroups_pybind11.transf import Transf
 from libsemigroups_pybind11 import Konieczny
+from libsemigroups_pybind11 import FroidurePin
 
+import subprocess
 from collections import deque
 
 from pyformlang.finite_automaton import State
@@ -51,7 +53,6 @@ def regex_to_pyformlang_min_dfa(regex):
     dfa = nfa.to_deterministic()
     min_dfa = dfa.minimize()
     min_dfa = complete_dfa(min_dfa)
-
     return min_dfa
 
 
@@ -368,8 +369,78 @@ def check_equation_sat(elements, reps, equation):
             "counterexample": counterexample
         }
 
+def cayley_graph_svg(wg, node_labels, alphabet, title=None):
+    dot = Digraph(format="svg")
+    dot.attr(rankdir="LR")
+
+    dot.attr("node", shape="circle", width="0.6", fixedsize="true")
+    dot.attr("edge", fontsize="12")
+
+    if title is not None:
+        dot.attr(label=title, labelloc="t", fontsize="16")
+
+    # nodes
+    for i in range(wg.number_of_nodes()):
+        dot.node(str(i), label=node_labels.get(i, str(i)))
+
+    # edges
+    for s in wg.nodes():
+        for label, target in wg.labels_and_targets(s):
+            if target is None:
+                continue
+            dot.edge(str(s), str(target), label=str(alphabet[label]))
+
+    return dot.pipe(format="svg").decode("utf-8")
+
+def froidure_pin_alg(min_dfa):
+    states, alphabet, letter_transf = build_letter_generators(min_dfa)
+
+    gens = [letter_transf[a] for a in alphabet]
+    S = FroidurePin(gens)
+    reps = shortest_representatives(alphabet, letter_transf, n_states=len(states))
+
+    # node labels: show transformation + representative word
+    node_labels = {}
+    for i, x in enumerate(list(S)):
+        k = tuple(list(x))
+        w = reps.get(k, "?")
+        # show epsilon nicely
+        w_display = "ε" if w == "" else w
+        node_labels[i] = w_display
+    return S, node_labels
+
+def right_cayley_graph_svg(min_dfa):
+    S, node_labels = froidure_pin_alg(min_dfa)
+
+    # build Cayley graph
+    wg = S.right_cayley_graph()
+
+    return cayley_graph_svg(
+        wg, node_labels, sorted(min_dfa._input_symbols, key=str), title="Right Cayley Graph"
+    )
+
+
+def left_cayley_graph_svg(min_dfa):
+    S, node_labels = froidure_pin_alg(min_dfa)
+
+    # build Cayley graph
+    wg = S.left_cayley_graph()
+
+    return cayley_graph_svg(
+        wg, node_labels, sorted(min_dfa._input_symbols, key=str), title="Left Cayley Graph"
+    )
+
+
+def add_spacing(s):
+    """
+    Insert spaces between consecutive letters.
+    Example: 'abc' -> 'a b c'
+    """
+    return re.sub(r'([a-zA-Z])(?=[a-zA-Z])', r'\1 ', s)
 
 # --- usage ---
 
 min_dfaa= regex_to_pyformlang_min_dfa("(a a)*")
-visualize_syntactic_monoid(min_dfaa)
+#visualize_syntactic_monoid(min_dfaa)
+right_cayley_graph_svg(min_dfaa)
+left_cayley_graph_svg(min_dfaa)

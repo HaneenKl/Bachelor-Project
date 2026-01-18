@@ -6,30 +6,39 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return render_template("index.html")
+    return render_template("idk.html", space_mode="on", processed_input="")
 
 @app.route("/process", methods=["POST"])
 def process():
     mode = request.form["mode"]
-    user_input = request.form["user_input"]
+    raw_input = request.form["user_input"]
+    user_input = request.form.get("processed_input", raw_input)
+    processed_input = user_input
     equation = request.form.get("equation")  # ← USER INPUT
-
-
+    space_mode = request.form.get("space_mode", "off")
 
     error = None
     svg = None
+    right_svg = None
+    left_svg = None
     equation_result = None
 
     if not user_input.strip():
         error = "Error: Input cannot be empty."
         return render_template(
-            "index.html",
+            "idk.html",
             user_input=user_input,
-            error=error
+            svg=svg,
+            right_svg=right_svg,
+            left_svg=left_svg,
+            error=error,
+            space_mode=space_mode
         )
 
 
     try:
+        if space_mode == "on":
+            user_input = konieczny.add_spacing(user_input)
         if mode == "arden":
             equations = arden.parse_equations(user_input)
             automaton = arden.arden_to_automata(equations)
@@ -43,7 +52,11 @@ def process():
         # --- 2. Compute semigroup + SVG ---
         svg = konieczny.visualize_syntactic_monoid(min_dfa)
 
-        # --- 3. Solve equation if provided ---
+        # --- 3. Compute Cayley graphs ---
+        right_svg = konieczny.right_cayley_graph_svg(min_dfa)
+        left_svg = konieczny.left_cayley_graph_svg(min_dfa)
+
+        # --- 4. Solve equation if provided ---
         if equation:
             elements, reps = konieczny.compute_syntactic_semigroup(min_dfa)
 
@@ -59,18 +72,20 @@ def process():
                 equation_result = "Equation fails:\n" + ", ".join(lines)
 
 
-
-
     except Exception as e:
         error = f"Error processing input: {str(e)}"
 
     return render_template(
-        "index.html",
-        user_input=user_input,
+        "idk.html",
+        user_input=raw_input,
+        processed_input=processed_input,
         svg=svg,
+        right_svg=right_svg,
+        left_svg=left_svg,
         error=error,
         equation=equation,
         equation_result=equation_result,
+        space_mode=space_mode
     )
 
 

@@ -18,20 +18,40 @@
                 <div class="d-flex justify-content-center">
                     <div class="col-md-5">
 
-                        <label for="user_input"
-                               class="fw-semibold mb-2 d-block text-center"
-                               style="font-size: 1.25rem;">
-                            Input:
-                        </label>
+<label for="user_input"
+       class="fw-semibold mb-2 d-block text-center"
+       style="font-size: 1.25rem;">
+    Input:
+</label>
 
-                        <textarea
-                                id="user_input"
-                                name="user_input"
-                                rows="8"
-                                class="form-control font-monospace"
-                                style="font-size: 1.10rem;"
-                                placeholder="Enter regex or equations here..."
-                        >{{ user_input or "" }}</textarea>
+<input type="hidden" name="space_mode" value="off">
+<!-- ✅ SPACING TOGGLE (PUTS HERE) -->
+<div class="form-check form-switch mb-2 text-center">
+<input
+    class="form-check-input"
+    type="checkbox"
+    id="spaceToggle"
+    name="space_mode"
+    value="on"
+    {% if space_mode == "on" %}checked{% endif %}
+>
+    <label class="form-check-label" for="spaceToggle">
+        Treat each letter as a symbol
+    </label>
+</div>
+
+
+<textarea
+        id="user_input"
+        name="user_input"
+        rows="8"
+        class="form-control font-monospace"
+        style="font-size: 1.10rem;"
+        placeholder="Enter regex or equations here..."
+>{{ user_input or "" }}</textarea>
+<!-- ✅ HIDDEN FIELD (PUTS HERE) -->
+<input type="hidden" name="processed_input" id="processed_input">
+
 
                     </div>
                 </div>
@@ -73,9 +93,28 @@ B = aA
     <div class="col-md-6">
         {% if svg %}
         <h3>Syntactic Monoid</h3>
-        <div class="border p-2 bg-light">
+        <div class="border p-2 bg-light mb-4">
             {{ svg|safe }}
         </div>
+
+        <!-- Cayley graphs -->
+{% if right_svg and left_svg %}
+<div class="row mb-3">
+
+    <div class="col-md-6">
+        <div class="border p-2 bg-light text-center" style="overflow-x:auto;">
+            {{ right_svg | safe }}
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="border p-2 bg-light text-center" style="overflow-x:auto;">
+            {{ left_svg | safe }}
+        </div>
+    </div>
+
+</div>
+        {% endif %}
          <!-- ✅ EQUATION INPUT APPEARS HERE -->
     <hr>
 
@@ -83,9 +122,10 @@ B = aA
 
     <form action="/process" method="POST">
         <!-- keep previous input -->
-        <input type="hidden" name="mode" value="{{ request.form.mode }}">
-        <input type="hidden" name="user_input" value="{{ user_input }}">
-
+    <input type="hidden" name="mode" value="{{ request.form.mode }}">
+    <input type="hidden" name="user_input" value="{{ user_input }}">
+    <input type="hidden" name="processed_input" value="{{ processed_input }}">
+    <input type="hidden" name="space_mode" value="{{ space_mode }}">
         <input
             type="text"
             name="equation"
@@ -104,15 +144,16 @@ B = aA
         <pre class="mb-0">{{ equation_result }}</pre>
     </div>
     {% endif %}
+{% endif %}
 
-    {% endif %}
+
     </div>
 </div>
 
 <script>
     const modeSelect = document.getElementById("mode");
     const ardenHelp = document.getElementById("arden-help");
-
+    const toggle = document.getElementById("spaceToggle");
     function toggleArdenHelp() {
         if (modeSelect.value === "arden") {
             ardenHelp.style.display = "block";
@@ -125,7 +166,24 @@ B = aA
     modeSelect.addEventListener("change", toggleArdenHelp);
 
     // Run on page load (important when form is submitted)
-    toggleArdenHelp();
+    toggleArdenHelp()
+
+    const form = document.querySelector("form");
+    const textarea = document.getElementById("user_input");
+
+    const hidden = document.getElementById("processed_input");
+
+    function spaceRegex(regex) {
+        return regex.replace(/[a-zA-Z](?=[a-zA-Z])/g, "$& ");
+    }
+
+    form.addEventListener("submit", () => {
+        const raw = textarea.value;
+        hidden.value = toggle.checked ? spaceRegex(raw) : raw;
+    });
+
 </script>
+
+
 
 </body>
