@@ -1,6 +1,5 @@
 from libsemigroups_pybind11 import FroidurePin
 from libsemigroups_pybind11.transf import Transf
-import subprocess
 
 
 
@@ -40,15 +39,7 @@ def create_semigroup():
 
     dot = wg_to_dot(wg, S)
 
-    # write DOT
-    with open("semigroup.dot", "w") as f:
-        f.write(dot)
 
-    # DOT -> SVG
-    subprocess.run(
-        ["dot", "-Tsvg", "semigroup.dot", "-o", "semigroup.svg"],
-        check=True
-    )
 
 
 

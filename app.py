@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request
-import arden_to_automata as arden
-import konieczny_alg as konieczny
+import input_to_automata as aut
+import semi_group as sg
+import cayley_graph as cg
 
 app = Flask(__name__)
 
@@ -14,7 +15,7 @@ def process():
     raw_input = request.form["user_input"]
     user_input = request.form.get("processed_input", raw_input)
     processed_input = user_input
-    equation = request.form.get("equation")  # ← USER INPUT
+    equation = request.form.get("equation")
     space_mode = request.form.get("space_mode", "off")
 
     error = None
@@ -37,30 +38,23 @@ def process():
 
 
     try:
-        if space_mode == "on":
-            user_input = konieczny.add_spacing(user_input)
         if mode == "arden":
-            equations = arden.parse_equations(user_input)
-            automaton = arden.arden_to_automata(equations)
-            min_dfa = konieczny.automaton_to_pyformlang_min_dfa(automaton)
-
+            min_dfa = aut.arden_to_pyformlang_min_dfa(user_input)
 
         elif mode == "regex":
-            min_dfa = konieczny.regex_to_pyformlang_min_dfa(user_input)
+            if space_mode == "on":
+                user_input = aut.add_spacing_to_regex(user_input)
+            min_dfa = aut.regex_to_pyformlang_min_dfa(user_input)
 
+        svg = sg.visualize_syntactic_monoid(min_dfa)
 
-        # --- 2. Compute semigroup + SVG ---
-        svg = konieczny.visualize_syntactic_monoid(min_dfa)
+        right_svg = cg.right_cayley_graph_svg(min_dfa)
+        left_svg = cg.left_cayley_graph_svg(min_dfa)
 
-        # --- 3. Compute Cayley graphs ---
-        right_svg = konieczny.right_cayley_graph_svg(min_dfa)
-        left_svg = konieczny.left_cayley_graph_svg(min_dfa)
-
-        # --- 4. Solve equation if provided ---
         if equation:
-            elements, reps = konieczny.compute_syntactic_semigroup(min_dfa)
+            elements, reps = sg.compute_syntactic_semigroup(min_dfa)
 
-            result = konieczny.check_equation_sat(elements, reps, equation)
+            result = sg.check_equation_sat(elements, reps, equation)
 
             if result["holds"]:
                 equation_result = "Equation holds."

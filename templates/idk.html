@@ -17,8 +17,7 @@
     <div class="col">
         <form method="POST" action="/process" class="m-5" style="border-radius: 10px;">
 
-            <!-- Hidden inputs für Flask -->
-            <input type="hidden" name="mode" id="modeInput">
+            <input type="hidden" name="mode" id="modeInput" required>
             <input type="hidden" name="space_mode" id="spaceModeInput" value="off">
 
             <div class="m-5" style="border-radius: 10px;">
@@ -34,13 +33,23 @@
                                          href="#" onclick="setMode('regex','regular expression')">regular expression</a>
                     </div>
                 </div>
-                <input type="text" id="input_field" name="user_input" placeholder="enter input ..." class="form-control"
-                       value="{{ user_input | default('') }}" style="border-radius: 5px;border-width: 1px;">
-                <div class="form-check"><input class="form-check-input" type="checkbox" data-bs-toggle="tooltip"
-                                               data-bss-tooltip="" id="checkBox" onchange="toggleSpaceMode(this)"><label
-                        class="form-check-label"
-                        for="checkBox">t<span
-                        style="color: rgb(0, 0, 0);">reat each letter as a symbol</span></label></div>
+                <textarea id="input_field"
+                          name="user_input"
+                          class="form-control"
+                          rows="5"
+                          placeholder="enter input ..." style="border-radius: 5px;border-width: 1px;">{{ user_input | default('') }}</textarea>
+                <div class="form-check">
+                    <div class="form-check" id="spaceModeWrapper">
+                        <input class="form-check-input" type="checkbox" id="checkBox" onchange="toggleSpaceMode(this)"
+                               {% if space_mode==
+                        "on" %}checked{% endif %}><label
+                            class="form-check-label"
+                            for="checkBox">t<span
+                            style="color: rgb(0, 0, 0);">reat each letter as a symbol</span>
+                    </label>
+                    </div>
+                </div>
+
                 <button class="btn btn-primary" data-bs-toggle="tooltip" data-bss-tooltip="" id="computeButton"
                         type="submit" disabled
                         style="margin: 25px;margin-right: 0px;margin-left: 0px;background: var(--bs-green);font-weight: bold;">
@@ -55,7 +64,7 @@
         </p>
         <p style="margin: 0;text-align: center;"><span
                 style="color: rgb(8, 8, 8); background-color: rgb(255, 255, 255);">A = aA + bB + ε</span><br><span
-                style="color: rgb(8, 8, 8); background-color: rgb(255, 255, 255);">B = aA + bB + c</span></p>
+                style="color: rgb(8, 8, 8); background-color: rgb(255, 255, 255);">B = aA + bB + b</span></p>
         <p style="margin: 0;text-align: center;"><span
                 style="color: rgb(8, 8, 8); background-color: rgb(255, 255, 255);">One equation per line. Use "ε" or "epsilon" for the empty word.</span>
         </p>
@@ -86,7 +95,7 @@
         <div class="col-md-6">
             <div class="card">
                 <div class="card-body" id="rightCayleyCard">
-                    <h4 class="card-title">Right Cayley Grpah</h4>
+                    <h4 class="card-title" style="text-align: center;">Right Cayley Grpah</h4>
                     {% if right_svg %}
                     {{ right_svg | safe }}
                     {% endif %}
@@ -103,8 +112,8 @@
         <input type="hidden" name="user_input" value="{{ user_input }}">
         <input type="hidden" name="processed_input" value="{{ processed_input }}">
         <input type="hidden" name="space_mode" value="{{ space_mode }}">
-        <input type="text" id="equationInput"
-               value="{{ equation | default('') }}"
+        <input type="text" id="equationInput" name="equation"
+               value="{{ equation or '' }}"
                style="margin: 50px;margin-top: 5px;margin-right: 25px;margin-bottom: 25px;"
                placeholder="e.g. x^3 y z^2 = z y x^3">
         <button class="btn btn-primary" id="checkButton" type="submit"
@@ -125,6 +134,16 @@
         document.getElementById("modeInput").value = value;
         document.getElementById("selectMenuButton").textContent = label;
         document.getElementById("computeButton").disabled = false;
+
+        const spaceWrapper = document.getElementById("spaceModeWrapper");
+
+        if (value === "arden") {
+            spaceWrapper.style.display = "none";
+            document.getElementById("spaceModeInput").value = "off";
+            document.getElementById("checkBox").checked = false;
+        } else {
+            spaceWrapper.style.display = "block";
+        }
     }
 </script>
 
@@ -136,19 +155,31 @@
 </script>
 
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-    const mode = "{{ request.form.mode | default('regex') }}";
-    if (mode === "arden") {
-        setMode("arden", "arden expression");
-    } else {
-        setMode("regex", "regular expression");
-    }
-});
+    document.addEventListener("DOMContentLoaded", () => {
+        const cb = document.getElementById("checkBox");
+        const hidden = document.getElementById("spaceModeInput");
+        hidden.value = cb.checked ? "on" : "off";
+    });
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const savedMode = "{{ request.form.mode | default('') }}";
+        const spaceWrapper = document.getElementById("spaceModeWrapper");
+
+        if (savedMode) {
+            if (savedMode === "arden") {
+                setMode("arden", "arden expression");
+                spaceWrapper.style.display = "none";
+            } else if (savedMode === "regex") {
+                setMode("regex", "regular expression");
+            }
+        }
+    });
 </script>
 
 
-<script src="{{ url_for('static', filename='assets/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{{ url_for('static', filename='assets/js/bs-init.js') }}"></script>
 </body>
-
 </html>
