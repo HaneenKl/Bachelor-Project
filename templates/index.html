@@ -1,189 +1,354 @@
-<body class="container-fluid mt-4">
+<!DOCTYPE html>
+<html data-bs-theme="light" lang="en">
 
-<h1 class="text-center mb-4">Compute Semigroup</h1>
-
-<div class="row">
-    <!-- LEFT: INPUT -->
-    <div class="col-md-6 mx-auto">
-        <form action="/process" method="POST">
-
-            <label for="mode" style="font-size: 1.25rem;">Choose Input Type:</label>
-            <select id="mode" name="mode" class="form-select mb-3" style="font-size: 1.15rem;">
-
-                <option value="regex">Regular Expression</option>
-                <option value="arden">Arden Equations</option>
-            </select>
-
-            <div class="row mt-4">
-                <div class="d-flex justify-content-center">
-                    <div class="col-md-5">
-
-<label for="user_input"
-       class="fw-semibold mb-2 d-block text-center"
-       style="font-size: 1.25rem;">
-    Input:
-</label>
-
-<input type="hidden" name="space_mode" value="off">
-<!-- ✅ SPACING TOGGLE (PUTS HERE) -->
-<div class="form-check form-switch mb-2 text-center">
-<input
-    class="form-check-input"
-    type="checkbox"
-    id="spaceToggle"
-    name="space_mode"
-    value="on"
-    {% if space_mode == "on" %}checked{% endif %}
->
-    <label class="form-check-label" for="spaceToggle">
-        Treat each letter as a symbol
-    </label>
-</div>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <title>Semigroups</title>
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='assets/bootstrap/css/bootstrap.min.css') }}">
 
 
-<textarea
-        id="user_input"
-        name="user_input"
-        rows="8"
-        class="form-control font-monospace"
-        style="font-size: 1.10rem;"
-        placeholder="Enter regex or equations here..."
->{{ user_input or "" }}</textarea>
-<!-- ✅ HIDDEN FIELD (PUTS HERE) -->
-<input type="hidden" name="processed_input" id="processed_input">
+</head>
 
-
-                    </div>
-                </div>
-
-
-                <!-- ARDEN HELP BOX -->
-                <div class="col-md-7">
-                    <div
-                            id="arden-help"
-                            class="border rounded p-3 bg-light fs-4"
-                            style="display: none;font-size: 1.2rem;"
-                    >
-                        <h4>Arden Equation Format</h4>
-                        <pre class="mb-0">
-A = aA + bB + ε
-B = aA
-            </pre>
-                        <small class="text-muted">
-                            One equation per line. Use "ε" or "epsilon" for the empty word.
-                        </small>
-                    </div>
-                </div>
-            </div>
-
-
-            <div class="mt-3">
-                <button type="submit" class="btn btn-primary" style="font-size: 1.10rem;">Compute</button>
-            </div>
-        </form>
-
-        {% if error %}
-        <div class="alert alert-danger mt-3">
-            {{ error }}
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- RIGHT: RESULT -->
-    <div class="col-md-6">
-        {% if svg %}
-        <h3>Syntactic Monoid</h3>
-        <div class="border p-2 bg-light mb-4">
-            {{ svg|safe }}
-        </div>
-
-        <!-- Cayley graphs -->
-{% if right_svg and left_svg %}
-<div class="row mb-3">
-
-    <div class="col-md-6">
-        <div class="border p-2 bg-light text-center" style="overflow-x:auto;">
-            {{ right_svg | safe }}
-        </div>
-    </div>
-
-    <div class="col-md-6">
-        <div class="border p-2 bg-light text-center" style="overflow-x:auto;">
-            {{ left_svg | safe }}
-        </div>
-    </div>
-
-</div>
-        {% endif %}
-         <!-- ✅ EQUATION INPUT APPEARS HERE -->
-    <hr>
-
-    <h4 class="mt-3">Check an Equation</h4>
-
-    <form action="/process" method="POST">
-        <!-- keep previous input -->
-    <input type="hidden" name="mode" value="{{ request.form.mode }}">
-    <input type="hidden" name="user_input" value="{{ user_input }}">
-    <input type="hidden" name="processed_input" value="{{ processed_input }}">
-    <input type="hidden" name="space_mode" value="{{ space_mode }}">
-        <input
-            type="text"
-            name="equation"
-            class="form-control font-monospace mt-2"
-            placeholder="e.g. x^3 y z^2 = z y x^3"
-            value="{{ equation or '' }}"
-        >
-
-        <button type="submit" class="btn btn-secondary mt-2">
-            Check equation
-        </button>
-    </form>
-
-    {% if equation_result %}
-    <div class="alert alert-info mt-3">
-        <pre class="mb-0">{{ equation_result }}</pre>
+<body style="background: var(--bs-light);">
+<div class="container-fluid">
+    {% if error %}
+    <div class="alert alert-danger m-3">
+        {{ error }}
     </div>
     {% endif %}
-{% endif %}
+    <div class="d-flex justify-content-end align-items-center p-3 gap-4">
 
+        <button class="btn btn-link fw-bold text-dark text-decoration-none p-0"
+                type="button"
+                onclick="toggleHistory()">
+            History
+        </button>
+
+        <a href="/docs"
+           class="fw-bold text-decoration-none text-dark"
+           target="_blank">
+            Documentation
+        </a>
 
     </div>
+</div>
+<div class="container-fluid" id="historyPanel" style="display: none;">
+    <div class="d-flex justify-content-end">
+        <div class="card me-3 mb-3" style="width: 420px;">
+            <div class="card-body">
+                <h5 class="card-title">History</h5>
+
+                {% if history %}
+                <ul class="list-group list-group-flush">
+                    {% for entry in history %}
+                    <li class="list-group-item">
+                        <strong>{{ entry.mode }}</strong>:
+                        <code>{{ entry.input }}</code>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="mb-0 text-muted">No inputs yet.</p>
+                {% endif %}
+
+                <form method="POST" action="/clear_history" class="mt-2">
+                    <button class="btn btn-sm btn-outline-secondary {% if not history %}disabled{% endif %}">
+                        Clear history
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<h1 style="text-align: center;font-weight: bold;font-size: 50px;color: var(--bs-dark);">Semigroups</h1>
+<div class="row">
+    <div class="col">
+        <form method="POST" class="m-5" style="border-radius: 10px;">
+
+            <input type="hidden" name="mode" id="modeInput" required>
+
+            <div class="m-5" style="border-radius: 10px;">
+                <div class="dropdown" data-bs-toggle="tooltip" data-bss-tooltip="">
+                    <button class="btn btn-primary dropdown-toggle" aria-expanded="false" data-bs-toggle="dropdown"
+                            id="selectMenuButton" type="button" style="background: var(--bs-green);font-weight: bold;">
+                        choose input type
+                    </button>
+                    <div class="dropdown-menu" id="selectMenu" style="background: var(--bs-success-bg-subtle);"><a
+                            class="dropdown-item" data-bs-toggle="tooltip" data-bss-tooltip="" id="arden" href="#"
+                            onclick="setMode('arden','arden expression')">arden
+                        expression</a><a class="dropdown-item" data-bs-toggle="tooltip" data-bss-tooltip="" id="regex"
+                                         href="#" onclick="setMode('regex','regular expression')">regular expression</a>
+                    </div>
+                </div>
+                <label for="input_field"></label><textarea id="input_field"
+                                                           name="user_input"
+                                                           class="form-control"
+                                                           rows="5"
+                                                           oninput="updateComputeButtons()"
+                                                           placeholder="enter input ..."
+                                                           style="border-radius: 5px;border-width: 1px;">{{ user_input | default('') }}</textarea>
+                <div class="form-check">
+                    <div class="form-check" id="spaceModeWrapper" style="display: none;">
+                        <input class="form-check-input" type="checkbox" id="checkBox" onchange="toggleSpaceMode(this)"
+                               data-space-mode="{{ space_mode }}">
+                        <input type="hidden" name="space_mode" id="spaceModeInput">
+                        <label
+                            class="form-check-label"
+                            for="checkBox"><span
+                            style="color: rgb(0, 0, 0);">treat each letter as a symbol</span>
+                    </label>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-3">
+
+                    <button class="btn btn-primary"
+                            formaction="/eggbox"
+                            id="ebButton"
+                            type="submit"
+                            disabled>
+                        Egg-box diagram
+                    </button>
+
+                    <button class="btn btn-primary"
+                            formaction="/left_cayley"
+                            id="lgButton"
+                            type="submit">
+                        left Cayley Graph
+                    </button>
+
+                    <button class="btn btn-primary"
+                            formaction="/right_cayley"
+                            id="rgButton"
+                            type="submit">
+                        right Cayley graph
+                    </button>
+
+                    <button class="btn btn-primary"
+                            formaction="/equations"
+                            id="ceButton"
+                            type="submit">
+                        check equations
+                    </button>
+
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="col"
+         id="ardenHint"
+         style="position: relative; margin: initial; display: none;">
+        <p style="text-align: center;margin: 50px 50px 0;font-weight: bold;font-size: 18px;">
+        <span style="color: rgb(8, 8, 8); background-color: rgb(255, 255, 255);">
+            arden equation input format:
+        </span>
+        </p>
+        <p style="margin: 0;text-align: center;">
+        <span style="color: rgb(8, 8, 8); background-color: rgb(255, 255, 255);">
+            A = aA + bB + ε
+        </span><br>
+            <span style="color: rgb(8, 8, 8); background-color: rgb(255, 255, 255);">
+            B = aA + bB + b
+        </span>
+        </p>
+        <p style="margin: 0;text-align: center;">
+        <span style="color: rgb(8, 8, 8); background-color: rgb(255, 255, 255);">
+            One equation per line. Use "ε" or "epsilon" for the empty word.
+        </span>
+        </p>
+    </div>
+    <div class="col"
+         id="regexHint"
+         style="position: relative; margin: initial; display: none;">
+        <p style="text-align: center; margin: 50px 50px 0;
+              font-weight: bold; font-size: 18px;">
+        <span style="color: rgb(8, 8, 8); background-color: rgb(255, 255, 255);">
+            regular expression input format:
+        </span>
+        </p>
+
+        <p style="margin: 0; text-align: center;">
+        <span style="color: rgb(8, 8, 8); background-color: rgb(255, 255, 255);">
+            concatenation: write symbols next to each other (no spaces)
+        </span>
+        </p>
+
+        <p style="margin: 0; text-align: center;">
+        <span style="color: rgb(8, 8, 8); background-color: rgb(255, 255, 255);">
+            union: use <strong>+</strong>
+        </span>
+        </p>
+
+        <p style="margin: 0; text-align: center;">
+        <span style="color: rgb(8, 8, 8); background-color: rgb(255, 255, 255);">
+            Kleene star: use <strong>*</strong>
+        </span>
+        </p>
+    </div>
+</div>
+<div class="col {% if not svg %}invisible{% endif %}" id="eggBoxCol">
+    <div class="card">
+        <div class="card-body" id="eggBoxCard">
+            <h4 class="card-title" style="text-align: center;">EggBox-Diagram</h4>
+            {% if svg %}
+            {{ svg | safe }}
+            {% endif %}
+        </div>
+    </div>
+</div>
+<div class="container">
+    <div class="row" id="cayleyRow">
+        <div class="col-md-6 {% if not left_svg %}d-none{% endif %}">
+            <div class="card">
+                <div class="card-body" id="leftCayleyCard">
+                    <h4 class="card-title" style="text-align: center;">Left Cayley Graph</h4>
+                    {% if left_svg %}
+                    {{ left_svg | safe }}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 {% if not right_svg %}d-none{% endif %}">
+            <div class="card">
+                <div class="card-body" id="rightCayleyCard">
+                    <h4 class="card-title" style="text-align: center;">Right Cayley Graph</h4>
+                    {% if right_svg %}
+                    {{ right_svg | safe }}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="col {% if not show_equations %}d-none{% endif %}" id="equationCol">
+    <p style="margin: 50px 50px 0;">check if multiple equations hold</p>
+    <form method="POST" action="/equations">
+
+        <input type="hidden" name="mode" value="{{ request.form.mode }}">
+        <input type="hidden" name="user_input" value="{{ user_input }}">
+        <input type="hidden" name="processed_input" value="{{ processed_input }}">
+        <input type="hidden" name="space_mode" value="{{ space_mode }}">
+        <label for="equationInput"></label><textarea id="equationInput" name="equation"
+                                                     style="margin: 5px 25px 25px 50px;"
+                                                     placeholder="enter multiple equations here.."> {{ equation or '' }}</textarea>
+        <button class="btn btn-primary" id="checkButton" type="submit"
+                style="background: var(--bs-green);font-weight: bold;">check
+        </button>
+    </form>
+    {% if equation_result %}
+    <div class="card">
+        <div class="card-body" id="equationCheckCard">
+            <pre class="mb-0">{{ equation_result }}</pre>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <script>
-    const modeSelect = document.getElementById("mode");
-    const ardenHelp = document.getElementById("arden-help");
-    const toggle = document.getElementById("spaceToggle");
-    function toggleArdenHelp() {
-        if (modeSelect.value === "arden") {
-            ardenHelp.style.display = "block";
-        } else {
-            ardenHelp.style.display = "none";
+    function toggleHistory() {
+        const panel = document.getElementById("historyPanel");
+        panel.style.display = (panel.style.display === "none") ? "block" : "none";
+    }
+</script>
+
+<script>
+    function updateComputeButtons() {
+        const mode = document.getElementById("modeInput").value;
+        const input = document.getElementById("input_field").value.trim();
+        const ebButton = document.getElementById("ebButton");
+        const lgButton = document.getElementById("lgButton");
+        const rgButton = document.getElementById("rgButton");
+        const ceButton = document.getElementById("ceButton");
+
+        ebButton.disabled = !(mode && input);
+        lgButton.disabled = !(mode && input);
+        rgButton.disabled = !(mode && input);
+        ceButton.disabled = !(mode && input);
+    }
+</script>
+
+<script>
+    function setMode(value, label) {
+        document.getElementById("modeInput").value = value;
+        document.getElementById("selectMenuButton").textContent = label;
+
+        const spaceWrapper = document.getElementById("spaceModeWrapper");
+        const ardenHint = document.getElementById("ardenHint");
+        const regexHint = document.getElementById("regexHint");
+
+        if (value === "arden") {
+            spaceWrapper.style.display = "none";
+            document.getElementById("spaceModeInput").value = "off";
+            document.getElementById("checkBox").checked = false;
+            ardenHint.style.display = "block";
+            regexHint.style.display = "none";
+        } else if (value === "regex") {
+            spaceWrapper.style.display = "block";
+            ardenHint.style.display = "none";
+            regexHint.style.display = "block";
         }
+        updateComputeButtons();
     }
-
-    // Run on change
-    modeSelect.addEventListener("change", toggleArdenHelp);
-
-    // Run on page load (important when form is submitted)
-    toggleArdenHelp()
-
-    const form = document.querySelector("form");
-    const textarea = document.getElementById("user_input");
-
-    const hidden = document.getElementById("processed_input");
-
-    function spaceRegex(regex) {
-        return regex.replace(/[a-zA-Z](?=[a-zA-Z])/g, "$& ");
-    }
-
-    form.addEventListener("submit", () => {
-        const raw = textarea.value;
-        hidden.value = toggle.checked ? spaceRegex(raw) : raw;
-    });
-
 </script>
 
 
+<script>
+    function toggleSpaceMode(cb) {
+        document.getElementById("spaceModeInput").value =
+            cb.checked ? "on" : "off";
+    }
+</script>
 
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const cb = document.getElementById("checkBox");
+        const hidden = document.getElementById("spaceModeInput");
+
+        // server → UI
+        cb.checked = (cb.dataset.spaceMode === "on");
+
+        // UI → form
+        hidden.value = cb.checked ? "on" : "off";
+
+        cb.addEventListener("change", () => {
+            hidden.value = cb.checked ? "on" : "off";
+        });
+    });
+</script>
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const savedMode = "{{ last_mode | default('') }}";
+        const spaceWrapper = document.getElementById("spaceModeWrapper");
+        const ardenHint = document.getElementById("ardenHint");
+        const regexHint = document.getElementById("regexHint");
+
+        if (savedMode) {
+            if (savedMode === "arden") {
+                setMode("arden", "arden expression");
+                spaceWrapper.style.display = "none";
+                ardenHint.style.display = "block";
+                regexHint.style.display = "none";
+            } else if (savedMode === "regex") {
+                setMode("regex", "regular expression");
+                ardenHint.style.display = "none";
+                regexHint.style.display = "block";
+            }
+        }
+    });
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        updateComputeButtons();
+    });
+</script>
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='assets/js/bs-init.js') }}"></script>
 </body>
+</html>

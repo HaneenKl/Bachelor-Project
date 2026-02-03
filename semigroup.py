@@ -172,7 +172,6 @@ def compute_syntactic_semigroup(min_dfa):
 def visualize_syntactic_monoid(min_dfa):
     elements, reps = compute_syntactic_semigroup(min_dfa)
 
-
     h_classes = defaultdict(list)
 
     for t, word in reps.items():
@@ -211,54 +210,152 @@ def mul(f, g):
     return [g[f[q]] for q in range(len(f))]
 
 
-def parse_side(side):
+
+
+import re
+
+def tokenize(s):
+    return re.findall(r'\(|\)|\^|=|w|\d+|[a-zA-Z]+', s)
+
+def parse_equation_to_ast(s):
+    tokens = tokenize(s)
+    i = 0
+
+    def parse_expr():
+        nonlocal i
+        node = parse_factor()
+        while i < len(tokens) and tokens[i] not in [')', '=']:
+            node = ("concat", node, parse_factor())
+        return node
+
+    def parse_factor():
+        nonlocal i
+
+        if tokens[i] == '(':
+            i += 1
+            node = parse_expr()
+            if tokens[i] != ')':
+                raise ValueError("Missing ')'")
+            i += 1
+        else:
+            node = tokens[i]
+            i += 1
+
+        # optional power
+        if i < len(tokens) and tokens[i] == '^':
+            i += 1
+            if tokens[i] == 'w':
+                node = ("pow", node, "omega")
+            else:
+                node = ("pow", node, int(tokens[i]))
+            i += 1
+
+        return node
+
+    left = parse_expr()
+
+    if tokens[i] != '=':
+        raise ValueError("Expected '=' in equation")
+    i += 1
+
+    right = parse_expr()
+
+    if i != len(tokens):
+        raise ValueError("Unexpected tokens at end")
+
+    return left, right
+
+
+def repeat(x, n):
+    r = x
+    for _ in range(n - 1):
+        r = mul(r, x)
+    return r
+
+
+def eval_expr(expr, assignment, omega):
+    if isinstance(expr, str):  # variable
+        return assignment[expr]
+
+    kind = expr[0]
+
+    if kind == "concat":
+        return mul(
+            eval_expr(expr[1], assignment, omega),
+            eval_expr(expr[2], assignment, omega)
+        )
+
+    if kind == "pow":
+        base = eval_expr(expr[1], assignment, omega)
+        exp = expr[2]
+
+        if exp == "omega":
+            return omega(base)
+        else:
+            return repeat(base, exp)
+
+
+def omega(x):
     """
-    Parses something like:
-      'x^3 y z^2'
-    into:
-      ['x','x','x','y','z','z']
+    Compute x^ω (the idempotent in <x>) for a finite semigroup element x
     """
-    tokens = side.strip().split()
-    word = []
+    seen = {}
+    seq = []
 
-    for tok in tokens:
-        m = re.fullmatch(r'([a-zA-Z]+)(\^(\d+))?', tok)
-        if not m:
-            raise ValueError(f"Invalid token: {tok}")
+    cur = x
+    while tuple(cur) not in seen:
+        seen[tuple(cur)] = len(seq)
+        seq.append(cur)
+        cur = mul(cur, x)
 
-        var = m.group(1)
-        power = int(m.group(3)) if m.group(3) else 1
+    # cycle starts here
+    cycle_start = seen[tuple(cur)]
+    cycle = seq[cycle_start:]
 
-        word.extend([var] * power)
+    # find idempotent in the cycle
+    for e in cycle:
+        if mul(e, e) == e:
+            return e
 
-    return word
-
-
-def parse_equation(eq):
-    if "=" not in eq:
-        raise ValueError("Equation must contain '='")
-
-    left, right = eq.split("=")
-    return parse_side(left), parse_side(right)
+    raise RuntimeError("No idempotent found (should be impossible in finite semigroup)")
 
 
-def eval_word(word, assignment):
-    value = assignment[word[0]]
-    for v in word[1:]:
-        value = mul(value, assignment[v])
-    return value
+
+def vars_in(expr):
+    if isinstance(expr, str):
+        return {expr}
+
+    kind = expr[0]
+
+    if kind == "concat":
+        return vars_in(expr[1]) | vars_in(expr[2])
+
+    if kind == "pow":
+        return vars_in(expr[1])
+
+    raise ValueError(f"Unknown expression node: {expr}")
 
 
-def check_equation(left, right, elements):
-    variables = sorted(set(left + right))
 
+def check_equation_ast(left, right, elements, omega):
+    # 1. collect all variables appearing anywhere in the ASTs
+    variables = sorted(vars_in(left) | vars_in(right))
+
+    # 2. try all assignments of variables to elements
     for values in itertools.product(elements, repeat=len(variables)):
         assignment = dict(zip(variables, values))
 
-        if eval_word(left, assignment) != eval_word(right, assignment):
+        # 3. evaluate both sides under this assignment
+        lhs_val = eval_expr(left, assignment, omega)
+        rhs_val = eval_expr(right, assignment, omega)
+
+        # 4. if they differ, we found a counterexample
+        if lhs_val != rhs_val:
             return False, assignment
 
+    # 5. all assignments satisfied the equation
     return True, None
+
 
 
 def check_equation_sat(elements, reps, equation):
@@ -269,8 +366,12 @@ def check_equation_sat(elements, reps, equation):
         "counterexample": dict[str, str] | None
       }
     """
-    left, right = parse_equation(equation)
-    ok, ce = check_equation(left, right, elements)
+
+    # 1. parse user equation into ASTs
+    left, right = parse_equation_to_ast(equation)
+
+    # 2. check equation semantically
+    ok, assignment = check_equation_ast(left, right, elements, omega)
 
     if ok:
         return {
@@ -278,9 +379,9 @@ def check_equation_sat(elements, reps, equation):
             "counterexample": None
         }
 
-    # build readable counterexample
+    # 3. build readable counterexample (VARIABLE → WORD)
     counterexample = {}
-    for var, elem in ce.items():
+    for var, elem in assignment.items():
         word = reps[tuple(elem)]
         counterexample[var] = "ε" if word == "" else word
 
@@ -289,3 +390,54 @@ def check_equation_sat(elements, reps, equation):
         "counterexample": counterexample
     }
 
+
+def check_equations_batch(elements, reps, equations_text):
+    """
+    Check multiple equations given as a multiline string.
+
+    Parameters
+    ----------
+    elements : list
+        Semigroup elements (transformations)
+    reps : dict
+        Maps tuple(element) -> representative word
+    equations_text : str
+        Multiline user input, one equation per line
+
+    Returns
+    -------
+    list of dicts, one per equation:
+      {
+        "equation": str,
+        "holds": bool,
+        "counterexample": dict[str, str] | None
+      }
+    """
+
+    results = []
+
+    # split lines, ignore empty ones
+    lines = [
+        line.strip()
+        for line in equations_text.splitlines()
+        if line.strip()
+    ]
+
+    for eq in lines:
+        try:
+            res = check_equation_sat(elements, reps, eq)
+            results.append({
+                "equation": eq,
+                "holds": res["holds"],
+                "counterexample": res["counterexample"]
+            })
+        except Exception as e:
+            # syntax or parsing error
+            results.append({
+                "equation": eq,
+                "holds": False,
+                "counterexample": None,
+                "error": str(e)
+            })
+
+    return results

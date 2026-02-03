@@ -1,7 +1,7 @@
 from libsemigroups_pybind11 import FroidurePin
 from graphviz import Digraph
 
-from semi_group import build_letter_generators, shortest_representatives
+from semigroup import build_letter_generators, shortest_representatives
 
 
 
