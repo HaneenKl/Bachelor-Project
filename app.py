@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, session
+from flask_session import Session
 import input_to_automata as aut
 import semigroup as sg
 import cayley_graph as cg
@@ -6,25 +7,34 @@ import cayley_graph as cg
 app = Flask(__name__)
 app.secret_key = "dev-secret"
 
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SESSION_PERMANENT"] = False
+Session(app)
 
-def update_history(mode, raw_input):
+def update_history():
     history = session.get("history", [])
-    entry = {"mode": mode, "input": raw_input}
+    entry = {
+        "mode": session.get("last_mode"),
+        "input": session.get("last_input"),
+    }
     if entry not in history:
         history.append(entry)
     session["history"] = history
 
 def persist_input_from_request():
-    mode = request.form["mode"]
-    raw_input = request.form["user_input"]
+    mode = request.form.get("mode")
+    raw_input = request.form.get("user_input")
     space_mode = request.form.get("space_mode", "off")
+
+    if not mode or not raw_input:
+        raise ValueError("No input provided")
 
     input_changed = (
         raw_input != session.get("last_input")
         or mode != session.get("last_mode")
         or space_mode != session.get("last_space_mode")
     )
-
+    
     if input_changed:
         # clear ALL artifacts from previous input
         for key in [
@@ -40,9 +50,6 @@ def persist_input_from_request():
     session["last_input"] = raw_input
     session["last_mode"] = mode
     session["last_space_mode"] = space_mode
-
-    return mode, raw_input, space_mode
-
 
 @app.route("/")
 def home():
@@ -60,7 +67,6 @@ def home():
         show_equations=session.get("show_equations", False),
         space_mode=session.get("last_space_mode", "off"),
         last_mode=session.get("last_mode")
-
     )
 
 @app.route("/docs")
@@ -87,30 +93,31 @@ def clear_history():
 
     return redirect("/")
 
+def build_min_dfa_from_session():
+    mode = session.get("last_mode")
+    user_input = session.get("last_input")
+    space_mode = session.get("last_space_mode", "off")
 
-def build_min_dfa_from_request():
-    mode = request.form["mode"]
-    user_input = request.form["user_input"]
-    space_mode = request.form.get("space_mode", "off")
+    if not mode or not user_input:
+        raise ValueError("No input available")
 
-    if mode == "regex" and space_mode == "on":
-        user_input = aut.add_spacing_to_regex(user_input)
+    if mode == "regex":
+        if space_mode == "on":
+            user_input = aut.add_spacing_to_regex(user_input)
+        return aut.regex_to_pyformlang_min_dfa(user_input)
 
     if mode == "arden":
         return aut.arden_to_pyformlang_min_dfa(user_input)
-    elif mode == "regex":
-        return aut.regex_to_pyformlang_min_dfa(user_input)
-    else:
-        raise ValueError("Unknown mode")
 
+    raise ValueError("Unknown mode")
 
 @app.route("/eggbox", methods=["POST"])
 def eggbox():
     try:
-        mode, raw_input, space_mode = persist_input_from_request()
-        update_history(mode, raw_input)
+        persist_input_from_request()
+        update_history()
 
-        min_dfa = build_min_dfa_from_request()
+        min_dfa = build_min_dfa_from_session()
         svg = sg.visualize_syntactic_monoid(min_dfa)
         session["eggbox_svg"] = svg
         session["error"] = None
@@ -121,10 +128,10 @@ def eggbox():
 @app.route("/left_cayley", methods=["POST"])
 def left_cayley():
     try:
-        mode, raw_input, space_mode = persist_input_from_request()
-        update_history(mode, raw_input)
+        persist_input_from_request()
+        update_history()
 
-        min_dfa = build_min_dfa_from_request()
+        min_dfa = build_min_dfa_from_session()
         left_svg = cg.left_cayley_graph_svg(min_dfa)
         session["left_svg"] = left_svg
         session["error"] = None
@@ -132,14 +139,13 @@ def left_cayley():
         session["error"] = f"Error computing left Cayley graph: {e}"
     return redirect("/")
 
-
 @app.route("/right_cayley", methods=["POST"])
 def right_cayley():
     try:
-        mode, raw_input, space_mode = persist_input_from_request()
-        update_history(mode, raw_input)
+        persist_input_from_request()
+        update_history()
 
-        min_dfa = build_min_dfa_from_request()
+        min_dfa = build_min_dfa_from_session()
         right_svg = cg.right_cayley_graph_svg(min_dfa)
         session["right_svg"] = right_svg
         session["error"] = None
@@ -151,10 +157,10 @@ def right_cayley():
 def equations():
     equation_input = request.form.get("equation", "")
     try:
-        mode, raw_input, space_mode = persist_input_from_request()
-        update_history(mode, raw_input)
+        persist_input_from_request()
+        update_history()
 
-        min_dfa = build_min_dfa_from_request()
+        min_dfa = build_min_dfa_from_session()
         if equation_input:
             elements, reps = sg.compute_syntactic_semigroup(min_dfa)
             results = sg.check_equations_batch(elements, reps, equation_input)
@@ -182,8 +188,6 @@ def equations():
     except Exception as e:
         session["error"] = f"Error checking equations: {e}"
     return redirect("/")
-
-
 
 
 if __name__ == "__main__":
