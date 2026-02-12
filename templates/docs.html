@@ -1,39 +1,139 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <title>Semigroups – Documentation</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <title>Documentation - Semigroups</title>
     <link rel="stylesheet"
           href="{{ url_for('static', filename='assets/bootstrap/css/bootstrap.min.css') }}">
 </head>
 
-<body class="bg-light">
+<body style="background: var(--bs-light);">
+<div class="container">
+    <h1 class="text-center font-weight-bold text-dark">Semigroups Documentation</h1>
 
-<div class="container mt-5">
-    <h1 class="mb-4">Documentation</h1>
+    <section>
+        <h2>Introduction</h2>
+        <p>
+            This page is designed to allow the user to perform semigroup-related computations using either regular
+            expressions or Arden expressions.
+            The available operations include generating Egg-box diagrams, Cayley graphs, and checking equations based on
+            the elements of the semigroup.
+        </p>
+    </section>
 
-    <h4>Input Types</h4>
-    <ul>
-        <li><strong>Arden expressions</strong>: one equation per line</li>
-        <li><strong>Regular expressions</strong>: standard regex syntax</li>
-    </ul>
+    <section>
+        <h2>Input Types</h2>
+        <p>Users can choose between two input modes:</p>
+        <ul>
+            <li><strong>Arden Expression</strong>: This is an input format used for expressing transitions in an
+                automaton.
+            </li>
+            <li><strong>Regular Expression</strong></li>
+        </ul>
+        <h3>Arden Expression</h3>
+        <p>
+            In the Arden equation format, each equation defines a transition for a particular state in an automaton.
+            Multiple equations can be entered, one per line.
+            Each equation should consist of terms in the form of a symbol followed by a variable or terminal symbol. The
+            terms of the equation are concatenated by the "+" symbol.
+            <br>
+            <strong>Example:</strong>
+            <code> <br>
+                A = aB + aA + ε<br>
+                B = bB + cC + c<br>
+                C = cA
+            </code>
+        </p>
 
-    <h4>Visualizations</h4>
-    <ul>
-        <li>Egg-box diagrams (Green’s relations)</li>
-        <li>Left and right Cayley graphs</li>
-    </ul>
+        <h3>Regular Expression</h3>
+        <p>
+            The input for regular expressions supports the following operations:
+        <ul>
+            <li><strong>Concatenation</strong>: Characters next to each other are treated as concatenated terms (e.g.,
+                "ab").
+            </li>
+            <li><strong>Union</strong>: Use the "+" symbol to represent union.</li>
+            <li><strong>Kleene Star</strong>: Use "*" to represent the Kleene star operation.</li>
+        </ul>
+        </p>
+        <p>
+            If you wish to treat each entered character as a symbol, check the box below the input field. This will
+            treat each individual character in the input as a separate symbol.
+            For example, entering <code>ab*c</code> without the checkbox checked will treat "ab" and "c" as single
+            characters. The generated language will be <code>{c, abc, ababc, …}</code>.
+            <br>
+            When the checkbox is checked, each letter will be treated individually as a symbol. So, entering
+            <code>ab*c</code> with the checkbox checked will treat "a", "b", and "c" as separate symbols.
+            The generated language will then be <code>{ac, abc, abbc, …}</code>.
+        </p>
+    </section>
 
-    <h4>Equation Checking</h4>
-    <p>
-        After computing the semigroup, equations can be checked in the
-        equation input field.
-    </p>
+    <section>
+        <h2>Operations</h2>
+        <p>After selecting a mode and entering the input, the following computations are available:</p>
+        <ul>
+            <li><strong>Egg-box Diagram</strong>: Generates the Egg-box diagram for the input expression.</li>
+            <li><strong>Left Cayley Graph</strong>: Generates the left Cayley graph for the input expression.</li>
+            <li><strong>Right Cayley Graph</strong>: Generates the right Cayley graph for the input expression.</li>
+            <li><strong>Equation Check</strong>: Allows checking whether multiple equations hold based on the semigroup
+                elements.
+            </li>
+        </ul>
+    </section>
 
-    <button class="btn btn-secondary mt-3" onclick="window.close()">
-        ← Back to tool
-    </button>
+    <section>
+        <h2>Equation Check</h2>
+        <p>
+            The <strong>Equation Check</strong> section allows users to input multiple equations. Each equation should
+            be entered on a new line.
+        </p>
+        <p>
+            The input can include exponentiation or omega expressions such as <code>(x y)^w = z^3 x</code>.
+        </p>
+
+        <p><strong>Example:</strong></p>
+        <pre>
+x^3 y = z^w
+y^2 z = x
+z x = x y^2
+(x y)^3 = z^2
+z^4 = (y^2 z^3 x)^w
+</pre>
+        <p>
+            Symbols must be separated by spaces in order to be seen as single symbols.
+        </p>
+
+    </section>
+
+    <section>
+        <h2>History</h2>
+        <p>
+            A history panel is available to track the inputs that have been entered. This allows users to see previous
+            modes and inputs.
+            Users can also clear the history if needed.
+        </p>
+    </section>
+
+    <section>
+        <h2>Conclusion</h2>
+        <p>
+            This page provides an interface to work with semigroup computations. Whether you're working with
+            regular expressions or Arden equations,
+            you can easily generate graphical representations or check the validity of equations.
+        </p>
+    </section>
+
+    <div class="mt-4 text-center">
+        <button class="btn btn-secondary mt-3" onclick="window.close()">
+            ← Back to tool
+        </button>
+    </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='assets/js/bs-init.js') }}"></script>
 </body>
+
 </html>
