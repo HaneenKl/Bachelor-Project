@@ -108,28 +108,32 @@
                             formaction="/eggbox"
                             id="ebButton"
                             type="submit"
-                            disabled>
+                            disabled
+                    style="background: var(--bs-green);font-weight: bold;">
                         Egg-box diagram
                     </button>
 
                     <button class="btn btn-primary"
                             formaction="/left_cayley"
                             id="lgButton"
-                            type="submit">
+                            type="submit"
+                    style="background: var(--bs-green);font-weight: bold;">
                         left Cayley Graph
                     </button>
 
                     <button class="btn btn-primary"
                             formaction="/right_cayley"
                             id="rgButton"
-                            type="submit">
+                            type="submit"
+                    style="background: var(--bs-green);font-weight: bold;">
                         right Cayley graph
                     </button>
 
                     <button class="btn btn-primary"
-                            formaction="/equations"
+                            formaction="/equations/show"
                             id="ceButton"
-                            type="submit">
+                            type="submit"
+                    style="background: var(--bs-green);font-weight: bold;">
                         check equations
                     </button>
 
@@ -230,9 +234,10 @@
         <input type="hidden" name="user_input" value="{{ user_input }}">
         <input type="hidden" name="processed_input" value="{{ processed_input }}">
         <input type="hidden" name="space_mode" value="{{ space_mode }}">
+        <input type="hidden" name="evaluate" value="1">
         <label for="equationInput"></label><textarea id="equationInput" name="equation"
                                                      style="margin: 5px 25px 25px 50px;"
-                                                     placeholder="enter multiple equations here.."> {{ equation or '' }}</textarea>
+                                                     placeholder="enter multiple equations here..">{% if equation %}{{ equation }}{% endif %}</textarea>
         <button class="btn btn-primary" id="checkButton" type="submit"
                 style="background: var(--bs-green);font-weight: bold;">check
         </button>
