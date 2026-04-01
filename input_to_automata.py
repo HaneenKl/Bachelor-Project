@@ -126,7 +126,8 @@ def regex_to_pyformlang_min_dfa(regex):
 
 def add_spacing_to_regex(s):
     """
-    Insert spaces between letters.
-    Example: 'abc' -> 'a b c'
+    Insert spaces between letters/digits.
+    Example: '(abc)'  -> '(a b c)'
+             '012*' -> '0 1 2*'
     """
-    return re.sub(r'([a-zA-Z])(?=[a-zA-Z])', r'\1 ', s)
+    return re.sub(r'([a-zA-Z0-9])(?![)*+\s])', r'\1 ', s)
