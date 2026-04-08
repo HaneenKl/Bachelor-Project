@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html data-bs-theme="light" lang="en">
+<html data-bs-theme="light" lang="en" xmlns="http://www.w3.org/1999/html">
 
 <head>
     <meta charset="utf-8">
@@ -95,10 +95,10 @@
                                data-space-mode="{{ space_mode }}">
                         <input type="hidden" name="space_mode" id="spaceModeInput">
                         <label
-                            class="form-check-label"
-                            for="checkBox"><span
-                            style="color: rgb(0, 0, 0);">treat each letter as a symbol</span>
-                    </label>
+                                class="form-check-label"
+                                for="checkBox"><span
+                                style="color: rgb(0, 0, 0);">treat each letter as a symbol</span>
+                        </label>
                     </div>
                 </div>
 
@@ -109,7 +109,7 @@
                             id="ebButton"
                             type="submit"
                             disabled
-                    style="background: var(--bs-green);font-weight: bold;">
+                            style="background: var(--bs-green);font-weight: bold;">
                         Egg-box diagram
                     </button>
 
@@ -117,7 +117,7 @@
                             formaction="/left_cayley"
                             id="lgButton"
                             type="submit"
-                    style="background: var(--bs-green);font-weight: bold;">
+                            style="background: var(--bs-green);font-weight: bold;">
                         left Cayley Graph
                     </button>
 
@@ -125,7 +125,7 @@
                             formaction="/right_cayley"
                             id="rgButton"
                             type="submit"
-                    style="background: var(--bs-green);font-weight: bold;">
+                            style="background: var(--bs-green);font-weight: bold;">
                         right Cayley graph
                     </button>
 
@@ -133,8 +133,16 @@
                             formaction="/equations/show"
                             id="ceButton"
                             type="submit"
-                    style="background: var(--bs-green);font-weight: bold;">
+                            style="background: var(--bs-green);font-weight: bold;">
                         check equations
+                    </button>
+
+                    <button class="btn btn-primary"
+                            id="mtButton"
+                            type="button"
+                            onclick="copyMultiplicationTable()"
+                            style="background: var(--bs-green);font-weight: bold;">
+                        copy multiplication table
                     </button>
 
                 </div>
@@ -251,6 +259,17 @@
     {% endif %}
 </div>
 
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999">
+    <div id="copyToast" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive">
+        <div class="d-flex">
+            <div class="toast-body fw-bold">
+                ✓ Multiplication table copied to clipboard!
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+
 <script>
     function toggleHistory() {
         const panel = document.getElementById("historyPanel");
@@ -266,11 +285,13 @@
         const lgButton = document.getElementById("lgButton");
         const rgButton = document.getElementById("rgButton");
         const ceButton = document.getElementById("ceButton");
+        const mtButton = document.getElementById("mtButton");
 
         ebButton.disabled = !(mode && input);
         lgButton.disabled = !(mode && input);
         rgButton.disabled = !(mode && input);
         ceButton.disabled = !(mode && input);
+        mtButton.disabled = !(mode && input);
     }
 </script>
 
@@ -298,6 +319,35 @@
     }
 </script>
 
+<script>
+    async function copyMultiplicationTable() {
+        const mode = document.getElementById("modeInput").value;
+        const input = document.getElementById("input_field").value.trim();
+        const spaceMode = document.getElementById("spaceModeInput").value;
+
+        const formData = new FormData();
+        formData.append("mode", mode);
+        formData.append("user_input", input);
+        formData.append("space_mode", spaceMode);
+
+        try {
+            const response = await fetch("/multiplication_table", {
+                method: "POST",
+                body: formData
+            });
+            const data = await response.json();
+            await navigator.clipboard.writeText(data.latex);
+
+            const toast = new bootstrap.Toast(document.getElementById("copyToast"), {
+                delay: 2500
+            });
+            toast.show();
+        } catch (e) {
+            alert("Failed to fetch or copy the multiplication table.");
+        }
+    }
+</script>
+
 
 <script>
     function toggleSpaceMode(cb) {
@@ -311,10 +361,8 @@
         const cb = document.getElementById("checkBox");
         const hidden = document.getElementById("spaceModeInput");
 
-        // server → UI
         cb.checked = (cb.dataset.spaceMode === "on");
 
-        // UI → form
         hidden.value = cb.checked ? "on" : "off";
 
         cb.addEventListener("change", () => {
@@ -322,7 +370,6 @@
         });
     });
 </script>
-
 
 <script>
     document.addEventListener("DOMContentLoaded", () => {

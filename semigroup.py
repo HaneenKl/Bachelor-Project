@@ -1,12 +1,8 @@
 from libsemigroups_pybind11.transf import Transf
 from collections import deque
-
 from collections import defaultdict
-
 from graphviz import Digraph
-
 import re
-
 import itertools
 
 
@@ -165,6 +161,7 @@ def compute_syntactic_semigroup(min_dfa):
 
     elements = [list(t) for t in reps.keys()]
     print("elemnttss", elements)
+    print("reps", reps)
 
     return elements, reps
 
@@ -205,14 +202,44 @@ def visualize_syntactic_monoid(min_dfa):
     return svg
 
 
+############--- Latex multiplication table ---##############
+def build_multiplication_table(elements, reps):
+    table = []
+    for f in elements:
+        row = []
+        for g in elements:
+            fg = mul(f, g)
+            row.append(reps[tuple(fg)])
+        table.append(row)
+    return table
+
+
+def multiplication_table_to_latex(elements, reps):
+    table = build_multiplication_table(elements, reps)
+
+    def label(w):
+        return r"\varepsilon" if w == "" else w
+
+    labels = [label(reps[tuple(e)]) for e in elements]
+    n = len(labels)
+
+    col_spec = "c|" + "c" * n
+
+    lines = [r"\[", r"\begin{array}{" + col_spec + "}", r"\cdot & " + " & ".join(labels) + r" \\", r"\hline"]
+
+    for i, row in enumerate(table):
+        cells = [label(v) for v in row]
+        lines.append(labels[i] + " & " + " & ".join(cells) + r" \\")
+
+    lines.append(r"\end{array}")
+    lines.append(r"\]")
+
+    return "\n".join(lines)
+
 ############--- Equation checking ---##############
 def mul(f, g):
     return [g[f[q]] for q in range(len(f))]
 
-
-
-
-import re
 
 def tokenize(s):
     return re.findall(r'\(|\)|\^|=|w|\d+|[a-zA-Z]+', s)
@@ -413,7 +440,6 @@ def check_equations_batch(elements, reps, equations_text):
         "counterexample": dict[str, str] | None
       }
     """
-
     results = []
 
     # split lines, ignore empty ones

@@ -1,5 +1,6 @@
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, render_template, request, redirect, session, jsonify
 from flask_session import Session
+
 import input_to_automata as aut
 import semigroup as sg
 import cayley_graph as cg
@@ -45,6 +46,7 @@ def persist_input_from_request():
             "right_svg",
             "equation_result",
             "equation",
+            "multiplication_table",
         ]:
             session.pop(key, None)
         session["show_equations"] = False
@@ -69,6 +71,7 @@ def home():
         equation_result=session.get("equation_result"),
         show_equations=session.get("show_equations", False),
         space_mode=session.get("last_space_mode", "off"),
+        multiplication_table=session.get("multiplication_table"),
         last_mode=session.get("last_mode")
     )
 
@@ -93,6 +96,7 @@ def clear_history():
         "last_space_mode",
         "processed_input",
         "error",
+        "multiplication_table",
     ]:
         session.pop(key, None)
 
@@ -159,6 +163,7 @@ def right_cayley():
         session["error"] = None
     except Exception as e:
         session["error"] = f"Error computing right Cayley graph: {e}"
+
     return redirect("/")
 
 @app.route("/equations/show", methods=["POST"])
@@ -172,7 +177,6 @@ def show_equations():
         session.pop("equation_result", None)
         session.pop("equation", None)
         session["error"] = None
-
     except Exception as e:
         session["error"] = f"Error opening equation UI: {e}"
 
@@ -219,6 +223,19 @@ def equations():
 
     return redirect("/")
 
+@app.route("/multiplication_table", methods=["POST"])
+def multiplication_table():
+    try:
+        persist_input_from_request()
+
+        min_dfa = build_min_dfa_from_session()
+        elements, reps = sg.compute_syntactic_semigroup(min_dfa)
+        latex = sg.multiplication_table_to_latex(elements, reps)
+
+        return jsonify({"latex": latex})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 
 if __name__ == "__main__":
