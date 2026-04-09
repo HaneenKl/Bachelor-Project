@@ -342,6 +342,8 @@
                 delay: 2500
             });
             toast.show();
+
+            setTimeout(() => window.location.reload(), 1500);
         } catch (e) {
             alert("Failed to fetch or copy the multiplication table.");
         }

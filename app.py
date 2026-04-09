@@ -227,6 +227,7 @@ def equations():
 def multiplication_table():
     try:
         persist_input_from_request()
+        update_history()
 
         min_dfa = build_min_dfa_from_session()
         elements, reps = sg.compute_syntactic_semigroup(min_dfa)
