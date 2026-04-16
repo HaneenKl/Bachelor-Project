@@ -310,8 +310,27 @@ def plot_eggbox_svg(eggboxes):
 def mul(f, g):
     return tuple(g[f[q]] for q in range(len(f)))
 
-def build_multiplication_table(reps):
+def sort_elements(reps):
     elements = list(reps.keys())
+
+    # find sink element
+    sink = None
+    for z in elements:
+        if all(mul(z, x) == z and mul(x, z) == z for x in elements):
+            sink = z
+            break
+
+    def sort_key(e):
+        if reps[e] == "":
+            return 0, ""
+        if e == sink:
+            return 2, ""
+        return 1, reps[e]
+
+    return sorted(elements, key=sort_key)
+
+def build_multiplication_table(reps):
+    elements = sort_elements(reps)
     table = []
     for f in elements:
         row = []
@@ -319,12 +338,11 @@ def build_multiplication_table(reps):
             fg = mul(f, g)
             row.append(reps[fg])
         table.append(row)
-    return table
+    return table, elements
 
 
 def reps_to_latex(reps):
-    table = build_multiplication_table(reps)
-    elements = list(reps.keys())
+    table, elements = build_multiplication_table(reps)
 
     def label(w):
         return r"\varepsilon" if w == "" else w
