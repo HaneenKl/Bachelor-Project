@@ -1,6 +1,6 @@
 from graphviz import Digraph
 
-from semigroup import _build_fp_and_reps
+from semigroup import build_fp_and_reps
 
 
 
@@ -28,7 +28,7 @@ def cayley_graph_svg(wg, node_labels, alphabet):
 
 def froidure_pin_alg(min_dfa):
     # node labels: show transformation + representative word
-    reps, _fp, _alphabet = _build_fp_and_reps(min_dfa)
+    reps, _fp, _alphabet = build_fp_and_reps(min_dfa)
 
     node_labels = {
         i: ("ε" if w == "" else w)

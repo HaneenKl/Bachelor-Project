@@ -47,6 +47,7 @@ def persist_input_from_request():
             "equation_result",
             "equation",
             "multiplication_table",
+            "structure",
         ]:
             session.pop(key, None)
         session["show_equations"] = False
@@ -59,7 +60,7 @@ def persist_input_from_request():
 @app.route("/")
 def home():
     return render_template(
-        "index.html",
+        "indexx.html",
         history=session.get("history", []),
         user_input=session.get("last_input", ""),
         processed_input=session.get("processed_input", ""),
@@ -72,7 +73,8 @@ def home():
         show_equations=session.get("show_equations", False),
         space_mode=session.get("last_space_mode", "off"),
         multiplication_table=session.get("multiplication_table"),
-        last_mode=session.get("last_mode")
+        last_mode=session.get("last_mode"),
+        structure = session.get("structure", "semigroup"),
     )
 
 
@@ -97,6 +99,7 @@ def clear_history():
         "processed_input",
         "error",
         "multiplication_table",
+        "structure",
     ]:
         session.pop(key, None)
 
@@ -128,8 +131,14 @@ def eggbox():
         persist_input_from_request()
         update_history()
 
+        structure = request.form.get("structure", "semigroup")
+        session["structure"] = structure
+
         min_dfa = build_min_dfa_from_session()
-        svg = sg.visualize_syntactic_semigroup(min_dfa)
+        if structure == "monoid":
+            svg = sg.visualize_syntactic_monoid(min_dfa)
+        else:
+            svg = sg.visualize_syntactic_semigroup(min_dfa)
         session["eggbox_svg"] = svg
         session["error"] = None
     except Exception as e:
@@ -172,7 +181,9 @@ def show_equations():
         persist_input_from_request()
         update_history()
 
-        # Just show the UI, no computation
+        structure = request.form.get("structure", "semigroup")
+        session["structure"] = structure
+
         session["show_equations"] = True
         session.pop("equation_result", None)
         session.pop("equation", None)
@@ -211,8 +222,13 @@ def equations():
             session.pop("equation_result", None)
             return redirect("/")
 
+        structure = session.get("structure", "semigroup")
         min_dfa = build_min_dfa_from_session()
-        results = sg.check_equations_batch(min_dfa, equation_input)
+
+        if structure == "monoid":
+            results = sg.check_equations_batch_monoid(min_dfa, equation_input)
+        else:
+            results = sg.check_equations_batch_semigroup(min_dfa, equation_input)
 
         session["equation_result"] = format_results(results)
         session["error"] = None
@@ -228,8 +244,13 @@ def multiplication_table():
         persist_input_from_request()
         update_history()
 
+        structure = request.form.get("structure", "semigroup")
         min_dfa = build_min_dfa_from_session()
-        latex = sg.multiplication_table_to_latex(min_dfa)
+
+        if structure == "monoid":
+            latex = sg.multiplication_table_to_latex_monoid(min_dfa)
+        else:
+            latex = sg.multiplication_table_to_latex_semigroup(min_dfa)
 
         return jsonify({"latex": latex})
 

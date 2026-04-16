@@ -14,7 +14,6 @@ def build_letter_generators(min_dfa):
     state_index = {q: i for i, q in enumerate(states)}
 
     alphabet = sorted(min_dfa._input_symbols, key=str)
-    print("alphabet:", alphabet)
 
     # build transformations for each letter
     letter_transf = {}
@@ -22,7 +21,6 @@ def build_letter_generators(min_dfa):
         images = []
         for q in states:
             targets = min_dfa._transition_function(q, a)
-            print(a, q, targets)
 
             tgt = targets[0]
             images.append(state_index[tgt])
@@ -32,12 +30,12 @@ def build_letter_generators(min_dfa):
     return alphabet, letter_transf
 
 
-def _build_fp_and_reps(min_dfa):
+def build_fp_and_reps(min_dfa):
     alphabet, letter_transf = build_letter_generators(min_dfa)
     gens = [letter_transf[a] for a in alphabet]
     fp = FroidurePin(gens)
     fp.run()
-    print("fp size", fp.size())
+
     def factorize(j):
         factors_list = []
         while fp.length(j) > 1:
@@ -54,11 +52,11 @@ def _build_fp_and_reps(min_dfa):
         factors = factorize(i)
         word = "".join(str(alphabet[g]) for g in factors)
         reps[elem] = word
-    print(reps)
+
     return reps, fp, alphabet
 
 def compute_syntactic_semigroup(min_dfa):
-    reps, _fp, _alphabet = _build_fp_and_reps(min_dfa)
+    reps, _fp, _alphabet = build_fp_and_reps(min_dfa)
     return reps
 
 def compute_syntactic_monoid(min_dfa):
@@ -73,14 +71,13 @@ def compute_syntactic_monoid(min_dfa):
     return reps
 
 ############--- Green's relations from Cayley graphs ---##############
-
-def _kosaraju_sccs(n, adj):
+def kosaraju_sccs(n, adj):
     """Returns list of SCCs as sets of node indices."""
     visited = set()
     order = []
 
-    def dfs1(v):
-        stack = [(v, iter(adj.get(v, [])))]
+    def dfs1(a):
+        stack = [(a, iter(adj.get(a, [])))]
         while stack:
             node, children = stack[-1]
             try:
@@ -106,19 +103,19 @@ def _kosaraju_sccs(n, adj):
     visited2 = set()
     sccs = []
 
-    def dfs2(v):
-        scc = set()
-        stack = [v]
+    def dfs2(b):
+        second_dfs_scc = set()
+        stack = [b]
         while stack:
             node = stack.pop()
             if node in visited2:
                 continue
             visited2.add(node)
-            scc.add(node)
+            second_dfs_scc.add(node)
             for nb in radj.get(node, []):
                 if nb not in visited2:
                     stack.append(nb)
-        return scc
+        return second_dfs_scc
 
     for v in reversed(order):
         if v not in visited2:
@@ -128,7 +125,7 @@ def _kosaraju_sccs(n, adj):
     return sccs
 
 
-def _build_adj(wg):
+def build_adj(wg):
     adj = defaultdict(set)
     for s in wg.nodes():
         for _label, target in wg.labels_and_targets(s):
@@ -147,19 +144,19 @@ def compute_green_classes_semigroup(min_dfa):
       d_class      : dict node_index -> d_class_id
     """
 
-    reps, fp, _alphabet = _build_fp_and_reps(min_dfa)
+    reps, fp, _alphabet = build_fp_and_reps(min_dfa)
 
     n = fp.size()
 
     # R-classes = SCCs of right Cayley graph
     rcg = fp.right_cayley_graph()
-    r_adj = _build_adj(rcg)
-    r_sccs = _kosaraju_sccs(n, r_adj)
+    r_adj = build_adj(rcg)
+    r_sccs = kosaraju_sccs(n, r_adj)
 
     # L-classes = SCCs of left Cayley graph
     lcg = fp.left_cayley_graph()
-    l_adj = _build_adj(lcg)
-    l_sccs = _kosaraju_sccs(n, l_adj)
+    l_adj = build_adj(lcg)
+    l_sccs = kosaraju_sccs(n, l_adj)
 
     node_to_r = {}
     for r_id, scc in enumerate(r_sccs):
@@ -198,7 +195,7 @@ def compute_green_classes_semigroup(min_dfa):
     return fp, reps, node_to_r, node_to_l, node_to_d
 
 def compute_green_classes_monoid(min_dfa):
-    fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
+    _fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
 
     fp_elems = list(reps.keys())
     n_states = len(fp_elems[0])
@@ -218,15 +215,13 @@ def compute_green_classes_monoid(min_dfa):
         node_to_l[n] = new_id
         node_to_d[n] = new_id
 
-    return fp_elems, reps, node_to_r, node_to_l, node_to_d
+    return _fp, reps, node_to_r, node_to_l, node_to_d
 
 
 ############--- Egg-box diagram ---##############
-def visualize_syntactic_semigroup(min_dfa):
-    fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
+def build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d):
     fp_elems = list(reps.keys())
-
-    n = fp.size()
+    n = len(fp_elems)
 
     def word(t):
         return reps.get(t, "?")
@@ -240,7 +235,7 @@ def visualize_syntactic_semigroup(min_dfa):
     def rank(j):
         return len(set(fp_elems[j]))
 
-    d_groups_sorted = sorted(d_groups.values(), key=lambda nodes: -max(rank(i) for i in nodes))
+    d_groups_sorted = sorted(d_groups.values(), key=lambda d_nodes: -max(rank(j) for j in d_nodes))
 
     eggboxes = []
     for nodes in d_groups_sorted:
@@ -261,7 +256,7 @@ def visualize_syntactic_semigroup(min_dfa):
 
         # sort words within each H-class
         for key in cells:
-            cells[key].sort(key=lambda w: (w != "ε", len(w), w))
+            cells[key].sort(key=lambda wrd: (wrd != "ε", len(wrd), wrd))
 
         eggboxes.append({
             "n_rows": len(r_ids),
@@ -271,6 +266,14 @@ def visualize_syntactic_semigroup(min_dfa):
 
     return plot_eggbox_svg(eggboxes)
 
+def visualize_syntactic_semigroup(min_dfa):
+    fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
+    return build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d)
+
+
+def visualize_syntactic_monoid(min_dfa):
+    fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_monoid(min_dfa)
+    return build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d)
 
 def plot_eggbox_svg(eggboxes):
     dot = Digraph(format="svg")
@@ -319,8 +322,7 @@ def build_multiplication_table(reps):
     return table
 
 
-def multiplication_table_to_latex(min_dfa):
-    reps = compute_syntactic_semigroup(min_dfa)
+def reps_to_latex(reps):
     table = build_multiplication_table(reps)
     elements = list(reps.keys())
 
@@ -339,8 +341,17 @@ def multiplication_table_to_latex(min_dfa):
         lines.append(labels[i] + " & " + " & ".join(cells) + r" \\")
 
     lines.append(r"\end{array}" + r"\]")
-
     return "\n".join(lines)
+
+
+def multiplication_table_to_latex_semigroup(min_dfa):
+    reps = compute_syntactic_semigroup(min_dfa)
+    return reps_to_latex(reps)
+
+
+def multiplication_table_to_latex_monoid(min_dfa):
+    reps = compute_syntactic_monoid(min_dfa)
+    return reps_to_latex(reps)
 
 
 ############--- Equation checking ---##############
@@ -424,11 +435,12 @@ def eval_expr(expr, assignment, omega_f):
             return omega_f(base)
         else:
             return repeat(base, exp)
+    return None
 
 
 def omega(x):
     """
-    Compute x^ω (the idempotent in <x>) for a finite semigroup element x
+    Compute x^w (the idempotent) for a semigroup element x
     """
     seen = {}
     seq = []
@@ -448,7 +460,7 @@ def omega(x):
         if mul(e, e) == e:
             return e
 
-    raise RuntimeError("No idempotent found (should be impossible in finite semigroup)")
+    raise RuntimeError("No idempotent found")
 
 
 def vars_in(expr):
@@ -506,10 +518,7 @@ def check_equation_sat(reps, equation):
     return {"holds": False, "counterexample": counterexample}
 
 
-def check_equations_batch(min_dfa, equations_text):
-
-    reps = compute_syntactic_semigroup(min_dfa)
-
+def check_equations_with_reps(reps, equations_text):
     results = []
 
     # split lines, ignore empty ones
@@ -537,3 +546,13 @@ def check_equations_batch(min_dfa, equations_text):
             })
 
     return results
+
+
+def check_equations_batch_semigroup(min_dfa, equations_text):
+    reps = compute_syntactic_semigroup(min_dfa)
+    return check_equations_with_reps(reps, equations_text)
+
+
+def check_equations_batch_monoid(min_dfa, equations_text):
+    reps = compute_syntactic_monoid(min_dfa)
+    return check_equations_with_reps(reps, equations_text)

@@ -102,21 +102,67 @@
                     </div>
                 </div>
 
+                <input type="hidden" name="structure" id="structureInput" value="semigroup">
+
                 <div class="d-flex gap-2 mt-3">
 
-                    <button class="btn btn-primary"
-                            formaction="/eggbox"
-                            id="ebButton"
-                            type="submit"
-                            disabled
-                            style="background: var(--bs-green);font-weight: bold;">
-                        Egg-box diagram
-                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-primary dropdown-toggle"
+                                id="sgDropdown"
+                                type="button"
+                                disabled
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                                style="background: var(--bs-green);font-weight: bold;">
+                            Semigroup
+                        </button>
+                        <div class="dropdown-menu" style="background: var(--bs-success-bg-subtle);">
+                            <button class="dropdown-item" type="submit" formaction="/eggbox"
+                                    onclick="document.getElementById('structureInput').value='semigroup'">
+                                Egg-box Diagram
+                            </button>
+                            <button class="dropdown-item" type="submit" formaction="/equations/show"
+                                    onclick="document.getElementById('structureInput').value='semigroup'">
+                                Check Equations
+                            </button>
+                            <button class="dropdown-item" type="button"
+                                    onclick="copyMultiplicationTable('semigroup')">
+                                Copy Multiplication Table
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="dropdown">
+                        <button class="btn btn-primary dropdown-toggle"
+                                id="moDropdown"
+                                type="button"
+                                disabled
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                                style="background: var(--bs-green);font-weight: bold;">
+                            Monoid
+                        </button>
+                        <div class="dropdown-menu" style="background: var(--bs-success-bg-subtle);">
+                            <button class="dropdown-item" type="submit" formaction="/eggbox"
+                                    onclick="document.getElementById('structureInput').value='monoid'">
+                                Egg-box Diagram
+                            </button>
+                            <button class="dropdown-item" type="submit" formaction="/equations/show"
+                                    onclick="document.getElementById('structureInput').value='monoid'">
+                                Check Equations
+                            </button>
+                            <button class="dropdown-item" type="button"
+                                    onclick="copyMultiplicationTable('monoid')">
+                                Copy Mult Table
+                            </button>
+                        </div>
+                    </div>
 
                     <button class="btn btn-primary"
                             formaction="/left_cayley"
                             id="lgButton"
                             type="submit"
+                            disabled
                             style="background: var(--bs-green);font-weight: bold;">
                         left Cayley Graph
                     </button>
@@ -125,24 +171,9 @@
                             formaction="/right_cayley"
                             id="rgButton"
                             type="submit"
+                            disabled
                             style="background: var(--bs-green);font-weight: bold;">
                         right Cayley graph
-                    </button>
-
-                    <button class="btn btn-primary"
-                            formaction="/equations/show"
-                            id="ceButton"
-                            type="submit"
-                            style="background: var(--bs-green);font-weight: bold;">
-                        check equations
-                    </button>
-
-                    <button class="btn btn-primary"
-                            id="mtButton"
-                            type="button"
-                            onclick="copyMultiplicationTable()"
-                            style="background: var(--bs-green);font-weight: bold;">
-                        copy multiplication table
                     </button>
 
                 </div>
@@ -203,7 +234,7 @@
 <div class="col {% if not svg %}invisible{% endif %}" id="eggBoxCol">
     <div class="card">
         <div class="card-body text-center" id="eggBoxCard">
-            <h4 class="card-title" style="text-align: center;">EggBox-Diagram</h4>
+            <h4 class="card-title" style="text-align: center;">EggBox-Diagram ({{ structure | default('Semigroup') | title }})</h4>
             {% if svg %}
             {{ svg | safe }}
             {% endif %}
@@ -235,7 +266,7 @@
     </div>
 </div>
 <div class="col {% if not show_equations %}d-none{% endif %}" id="equationCol">
-    <p style="margin: 50px 50px 0;">check if multiple equations hold</p>
+    <p style="margin: 50px 50px 0;">check if multiple equations hold ({{ structure | default('Semigroup') | title }})</p>
     <form method="POST" action="/equations">
 
         <input type="hidden" name="mode" value="{{ request.form.mode }}">
@@ -281,17 +312,12 @@
     function updateComputeButtons() {
         const mode = document.getElementById("modeInput").value;
         const input = document.getElementById("input_field").value.trim();
-        const ebButton = document.getElementById("ebButton");
-        const lgButton = document.getElementById("lgButton");
-        const rgButton = document.getElementById("rgButton");
-        const ceButton = document.getElementById("ceButton");
-        const mtButton = document.getElementById("mtButton");
+        const enabled = !!(mode && input);
 
-        ebButton.disabled = !(mode && input);
-        lgButton.disabled = !(mode && input);
-        rgButton.disabled = !(mode && input);
-        ceButton.disabled = !(mode && input);
-        mtButton.disabled = !(mode && input);
+        document.getElementById("sgDropdown").disabled = !enabled;
+        document.getElementById("moDropdown").disabled = !enabled;
+        document.getElementById("lgButton").disabled = !enabled;
+        document.getElementById("rgButton").disabled = !enabled;
     }
 </script>
 
@@ -320,7 +346,7 @@
 </script>
 
 <script>
-    async function copyMultiplicationTable() {
+    async function copyMultiplicationTable(structure) {
         const mode = document.getElementById("modeInput").value;
         const input = document.getElementById("input_field").value.trim();
         const spaceMode = document.getElementById("spaceModeInput").value;
@@ -329,6 +355,7 @@
         formData.append("mode", mode);
         formData.append("user_input", input);
         formData.append("space_mode", spaceMode);
+        formData.append("structure", structure);
 
         try {
             const response = await fetch("/multiplication_table", {
