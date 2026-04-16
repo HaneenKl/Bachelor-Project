@@ -1,5 +1,5 @@
 from libsemigroups_pybind11.transf import Transf
-from collections import deque
+from libsemigroups_pybind11 import FroidurePin
 from collections import defaultdict
 from graphviz import Digraph
 import re
@@ -8,11 +8,8 @@ import itertools
 
 ############--- Syntactic semigroup computation and visualization ---##############
 def build_letter_generators(min_dfa):
-    # stable order: start state first, then the rest sorted by str
-    start = min_dfa.start_state
-    rest = [q for q in min_dfa.states if q != start]
-    rest.sort(key=str)
-    states = [start] + rest
+    """Returns alphabet, and dict letter -> letter transformation."""
+    states = min_dfa.states
 
     state_index = {q: i for i, q in enumerate(states)}
 
@@ -32,195 +29,305 @@ def build_letter_generators(min_dfa):
 
         letter_transf[a] = Transf(images)
 
-    return states, alphabet, letter_transf
+    return alphabet, letter_transf
 
 
-def shortest_representatives(alphabet, letter_transf, n_states):
+def _build_fp_and_reps(min_dfa):
+    alphabet, letter_transf = build_letter_generators(min_dfa)
+    gens = [letter_transf[a] for a in alphabet]
+    fp = FroidurePin(gens)
+    fp.run()
+    print("fp size", fp.size())
+    def factorize(j):
+        factors_list = []
+        while fp.length(j) > 1:
+            factors_list.append(fp.final_letter(j))
+            j = fp.prefix(j)
+        # j is a generator
+        factors_list.append(fp.final_letter(j))
+        factors_list.reverse()
+        return factors_list
+
+    reps = {}
+    for i, x in enumerate(fp):
+        elem = tuple(list(x))
+        factors = factorize(i)
+        word = "".join(str(alphabet[g]) for g in factors)
+        reps[elem] = word
+    print(reps)
+    return reps, fp, alphabet
+
+def compute_syntactic_semigroup(min_dfa):
+    reps, _fp, _alphabet = _build_fp_and_reps(min_dfa)
+    return reps
+
+def compute_syntactic_monoid(min_dfa):
+    reps = compute_syntactic_semigroup(min_dfa)
+
+    # add identity to reps if not already present
+    n_states = len(next(iter(reps.keys())))
+    identity = tuple(range(n_states))
+    if identity not in reps:
+        reps[identity] = ""
+
+    return reps
+
+############--- Green's relations from Cayley graphs ---##############
+
+def _kosaraju_sccs(n, adj):
+    """Returns list of SCCs as sets of node indices."""
+    visited = set()
+    order = []
+
+    def dfs1(v):
+        stack = [(v, iter(adj.get(v, [])))]
+        while stack:
+            node, children = stack[-1]
+            try:
+                child = next(children)
+                if child not in visited:
+                    visited.add(child)
+                    stack.append((child, iter(adj.get(child, []))))
+            except StopIteration:
+                order.append(node)
+                stack.pop()
+
+    for v in range(n):
+        if v not in visited:
+            visited.add(v)
+            dfs1(v)
+
+    # reverse graph
+    radj = defaultdict(set)
+    for u, vs in adj.items():
+        for v in vs:
+            radj[v].add(u)
+
+    visited2 = set()
+    sccs = []
+
+    def dfs2(v):
+        scc = set()
+        stack = [v]
+        while stack:
+            node = stack.pop()
+            if node in visited2:
+                continue
+            visited2.add(node)
+            scc.add(node)
+            for nb in radj.get(node, []):
+                if nb not in visited2:
+                    stack.append(nb)
+        return scc
+
+    for v in reversed(order):
+        if v not in visited2:
+            scc = dfs2(v)
+            sccs.append(scc)
+
+    return sccs
+
+
+def _build_adj(wg):
+    adj = defaultdict(set)
+    for s in wg.nodes():
+        for _label, target in wg.labels_and_targets(s):
+            if target is not None:
+                adj[s].add(target)
+    return adj
+
+
+def compute_green_classes_semigroup(min_dfa):
     """
-    Returns dict: transformation_tuple -> the shortest word (string)
+    Returns:
+      fp           : FroidurePin enumeration
+      reps         : dict transf tuple -> the shortest representative word
+      r_class      : dict node_index -> r_class_id  (from right Cayley graph SCCs)
+      l_class      : dict node_index -> l_class_id  (from left Cayley graph SCCs)
+      d_class      : dict node_index -> d_class_id
     """
-    id_t = Transf(list(range(n_states)))
-    print("id_t", id_t)
-    rep = {tuple(id_t[i] for i in range(n_states)): ""}
-    print("epiis", rep)
 
-    q = deque([id_t])
-    while q:
-        t = q.popleft()
-        t_key = tuple(t[i] for i in range(n_states))
-        w = rep[t_key]
+    reps, fp, _alphabet = _build_fp_and_reps(min_dfa)
 
-        for a in alphabet:
-            print("ttt", t)
-            print(letter_transf[a])
-            # word concat on the right corresponds to multiplying by generator on the right
-            t2 = t * letter_transf[a]
-            print("t22", t2)
-            k2 = tuple(list(t2))
-            if k2 not in rep:
-                rep[k2] = w + str(a)
-                q.append(t2)
+    n = fp.size()
 
-    return rep
+    # R-classes = SCCs of right Cayley graph
+    rcg = fp.right_cayley_graph()
+    r_adj = _build_adj(rcg)
+    r_sccs = _kosaraju_sccs(n, r_adj)
+
+    # L-classes = SCCs of left Cayley graph
+    lcg = fp.left_cayley_graph()
+    l_adj = _build_adj(lcg)
+    l_sccs = _kosaraju_sccs(n, l_adj)
+
+    node_to_r = {}
+    for r_id, scc in enumerate(r_sccs):
+        for node in scc:
+            node_to_r[node] = r_id
+
+    node_to_l = {}
+    for l_id, scc in enumerate(l_sccs):
+        for node in scc:
+            node_to_l[node] = l_id
+
+    # D-classes: union-find over R-classes that share an L-class
+    parent = list(range(len(r_sccs)))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(x, y):
+        parent[find(x)] = find(y)
+
+    # group R-class ids by L-class
+    l_to_r_classes = defaultdict(set)
+    for node in range(n):
+        l_to_r_classes[node_to_l[node]].add(node_to_r[node])
+
+    for r_ids in l_to_r_classes.values():
+        r_list = list(r_ids)
+        for i in range(1, len(r_list)):
+            union(r_list[0], r_list[i])
+
+    node_to_d = {node: find(node_to_r[node]) for node in range(n)}
+
+    return fp, reps, node_to_r, node_to_l, node_to_d
+
+def compute_green_classes_monoid(min_dfa):
+    fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
+
+    fp_elems = list(reps.keys())
+    n_states = len(fp_elems[0])
+    identity = tuple(range(n_states))
+
+    # only add identity if the semigroup doesn't already contain it
+    if identity not in set(fp_elems):
+        n = len(fp_elems)
+        fp_elems.append(identity)
+        # update reps so the egg-box can label the identity cell as ε
+        reps[identity] = ""
+
+        existing = set(node_to_r.values()) | set(node_to_l.values()) | set(node_to_d.values())
+        new_id = max(existing) + 1 if existing else 0
+
+        node_to_r[n] = new_id
+        node_to_l[n] = new_id
+        node_to_d[n] = new_id
+
+    return fp_elems, reps, node_to_r, node_to_l, node_to_d
 
 
-def kernel(t):
-    blocks = {}
-    for i, v in enumerate(t):
-        blocks.setdefault(v, set()).add(i)
-    return frozenset(frozenset(b) for b in blocks.values())
+############--- Egg-box diagram ---##############
+def visualize_syntactic_semigroup(min_dfa):
+    fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
+    fp_elems = list(reps.keys())
 
+    n = fp.size()
 
-def image(t):
-    return frozenset(t)
+    def word(t):
+        return reps.get(t, "?")
 
+    # group nodes by D-class
+    d_groups = defaultdict(list)
+    for i in range(n):
+        d_groups[node_to_d[i]].append(i)
 
-def d_key_for(ker, img):
-    # rank + sorted kernel block sizes: stable D-like signature for transformations
-    return len(img), tuple(sorted(len(b) for b in ker))
+    # sort D-classes by rank (size of image) descending
+    def rank(j):
+        return len(set(fp_elems[j]))
 
-
-def build_eggboxes_from_h(h_classes):
-    """
-    Returns list of eggboxes:
-      eggbox = {
-        "dkey": ...,
-        "rows": [ker1, ker2, ...],
-        "cols": [img1, img2, ...],
-        "cell": dict[(ri,ci)] -> H_key (ker,img)
-      }
-    """
-    groups = defaultdict(list)
-    for H_key in h_classes.keys():
-        ker, img = H_key
-        print("ker", ker)
-        groups[d_key_for(ker, img)].append(H_key)
+    d_groups_sorted = sorted(d_groups.values(), key=lambda nodes: -max(rank(i) for i in nodes))
 
     eggboxes = []
-    for dkey, hkeys in groups.items():
-        kernels = sorted({ker for (ker, img) in hkeys}, key=lambda k: (len(k), sorted(map(len, k))))
-        images = sorted({img for (ker, img) in hkeys}, key=lambda s: (len(s), sorted(s)))
+    for nodes in d_groups_sorted:
+        # collect R and L class ids within this D-class
+        r_ids = sorted({node_to_r[i] for i in nodes})
+        l_ids = sorted({node_to_l[i] for i in nodes})
 
-        ker_index = {k: i for i, k in enumerate(kernels)}
-        img_index = {s: j for j, s in enumerate(images)}
+        r_index = {r: j for j, r in enumerate(r_ids)}
+        l_index = {l: j for j, l in enumerate(l_ids)}
 
-        cell = {}
-        for (ker, img) in hkeys:
-            cell[(ker_index[ker], img_index[img])] = (ker, img)
+        # H-class cells: (l_row, r_col) -> list of words
+        cells = defaultdict(list)
+        for i in nodes:
+            r = r_index[node_to_r[i]]
+            l = l_index[node_to_l[i]]
+            w = word(fp_elems[i])
+            cells[(r, l)].append("ε" if w == "" else w)
 
-        eggboxes.append({"dkey": dkey, "rows": kernels, "cols": images, "cell": cell})
+        # sort words within each H-class
+        for key in cells:
+            cells[key].sort(key=lambda w: (w != "ε", len(w), w))
 
-    # nice ordering: higher rank first
-    eggboxes.sort(key=lambda b: (-b["dkey"][0], b["dkey"][1]))
-    return eggboxes
+        eggboxes.append({
+            "n_rows": len(r_ids),
+            "n_cols": len(l_ids),
+            "cells": cells,
+        })
+
+    return plot_eggbox_svg(eggboxes)
 
 
-def plot_eggbox_svg(eggboxes, h_rep):
+def plot_eggbox_svg(eggboxes):
     dot = Digraph(format="svg")
     dot.attr(rankdir="TB")
     dot.attr("node", shape="plaintext")
 
     for i, box in enumerate(eggboxes):
-        rows = len(box["rows"])
-        cols = len(box["cols"])
+        n_rows = box["n_rows"]
+        n_cols = box["n_cols"]
+        cells = box["cells"]
 
-        table = ['<table border="1" cellborder="1" cellspacing="0">', f'<tr><td colspan="{cols}" bgcolor="lightgray">'
-                                                                      f'<b>{i} D-class</b>'
-                                                                      f'</td></tr>']
+        table = ['<table border="1" cellborder="1" cellspacing="0">',]
 
-        # ---- Header row (D-class label) ----
-
-        # ---- Eggbox cells ----
-        for r in range(rows):
+        for r in range(n_rows):
             table.append("<tr>")
-            for c in range(cols):
-                hkey = box["cell"].get((r, c))
-                if hkey is None:
-                    table.append("<td></td>")
+            for c in range(n_cols):
+                words = cells.get((r, c), [])
+                if not words:
+                    table.append("<td width='100'> </td>")
                 else:
-                    w = h_rep[hkey]
-                    w_disp = "ε" if w == "" else w
-                    table.append(f"<td align='center'><b>{w_disp}</b></td>")
+                    display = ", ".join(words)
+                    table.append(f"<td width='100' align='center'><b>{display}</b></td>")
             table.append("</tr>")
 
         table.append("</table>")
-
         dot.node(f"D{i}", label="<" + "".join(table) + ">")
+    for i in range(len(eggboxes) - 1):
+        dot.edge(f"D{i}", f"D{i+1}", style="invis")
 
-    # Return SVG as UTF-8 string (exactly like your automaton plot)
     return dot.pipe(format="svg").decode("utf-8")
 
 
-def compute_syntactic_semigroup(min_dfa):
-    states, alphabet, letter_transf = build_letter_generators(min_dfa)
-
-    reps = shortest_representatives(
-        alphabet,
-        letter_transf,
-        n_states=len(states))
-
-    elements = [list(t) for t in reps.keys()]
-    print("elemnttss", elements)
-    print("reps", reps)
-
-    return elements, reps
-
-
-def visualize_syntactic_monoid(min_dfa):
-    elements, reps = compute_syntactic_semigroup(min_dfa)
-
-    h_classes = defaultdict(list)
-
-    for t, word in reps.items():
-        key = (kernel(t), image(t))
-        h_classes[key].append((t, word))
-
-    print("H classes:", h_classes)
-
-    h_rep = {}
-
-    for key, elems in h_classes.items():
-        words = [
-            "ε" if word == "" else word
-            for (_, word) in elems
-        ]
-
-        words.sort(key=lambda w: (w != "ε", len(w), w))
-
-        h_rep[key] = words
-
-    print("Hreppp", h_rep)
-
-    for (ker, img), words in h_rep.items():
-        print("  words:", ", ".join(words))
-        print(f"  kernel: {sorted(map(sorted, ker))}")
-        print(f"  image:  {sorted(img)}")
-        print()
-
-    eggboxes = build_eggboxes_from_h(h_classes)
-    svg = plot_eggbox_svg(eggboxes, h_rep)
-    return svg
-
-
 ############--- Latex multiplication table ---##############
-def build_multiplication_table(elements, reps):
+def mul(f, g):
+    return tuple(g[f[q]] for q in range(len(f)))
+
+def build_multiplication_table(reps):
+    elements = list(reps.keys())
     table = []
     for f in elements:
         row = []
         for g in elements:
             fg = mul(f, g)
-            row.append(reps[tuple(fg)])
+            row.append(reps[fg])
         table.append(row)
     return table
 
 
-def multiplication_table_to_latex(elements, reps):
-    table = build_multiplication_table(elements, reps)
+def multiplication_table_to_latex(min_dfa):
+    reps = compute_syntactic_semigroup(min_dfa)
+    table = build_multiplication_table(reps)
+    elements = list(reps.keys())
 
     def label(w):
         return r"\varepsilon" if w == "" else w
 
-    labels = [label(reps[tuple(e)]) for e in elements]
+    labels = [label(reps[e]) for e in elements]
     n = len(labels)
 
     col_spec = "c|" + "c" * n
@@ -231,18 +338,15 @@ def multiplication_table_to_latex(elements, reps):
         cells = [label(v) for v in row]
         lines.append(labels[i] + " & " + " & ".join(cells) + r" \\")
 
-    lines.append(r"\end{array}")
-    lines.append(r"\]")
+    lines.append(r"\end{array}" + r"\]")
 
     return "\n".join(lines)
 
+
 ############--- Equation checking ---##############
-def mul(f, g):
-    return [g[f[q]] for q in range(len(f))]
-
-
 def tokenize(s):
     return re.findall(r'\(|\)|\^|=|w|\d+|[a-zA-Z]+', s)
+
 
 def parse_equation_to_ast(s):
     tokens = tokenize(s)
@@ -300,7 +404,7 @@ def repeat(x, n):
     return r
 
 
-def eval_expr(expr, assignment, omega):
+def eval_expr(expr, assignment, omega_f):
     if isinstance(expr, str):  # variable
         return assignment[expr]
 
@@ -308,16 +412,16 @@ def eval_expr(expr, assignment, omega):
 
     if kind == "concat":
         return mul(
-            eval_expr(expr[1], assignment, omega),
-            eval_expr(expr[2], assignment, omega)
+            eval_expr(expr[1], assignment, omega_f),
+            eval_expr(expr[2], assignment, omega_f)
         )
 
     if kind == "pow":
-        base = eval_expr(expr[1], assignment, omega)
+        base = eval_expr(expr[1], assignment, omega_f)
         exp = expr[2]
 
         if exp == "omega":
-            return omega(base)
+            return omega_f(base)
         else:
             return repeat(base, exp)
 
@@ -347,7 +451,6 @@ def omega(x):
     raise RuntimeError("No idempotent found (should be impossible in finite semigroup)")
 
 
-
 def vars_in(expr):
     if isinstance(expr, str):
         return {expr}
@@ -363,8 +466,7 @@ def vars_in(expr):
     raise ValueError(f"Unknown expression node: {expr}")
 
 
-
-def check_equation_ast(left, right, elements, omega):
+def check_equation_ast(left, right, elements, omega_f):
     # 1. collect all variables appearing anywhere in the ASTs
     variables = sorted(vars_in(left) | vars_in(right))
 
@@ -373,8 +475,8 @@ def check_equation_ast(left, right, elements, omega):
         assignment = dict(zip(variables, values))
 
         # 3. evaluate both sides under this assignment
-        lhs_val = eval_expr(left, assignment, omega)
-        rhs_val = eval_expr(right, assignment, omega)
+        lhs_val = eval_expr(left, assignment, omega_f)
+        rhs_val = eval_expr(right, assignment, omega_f)
 
         # 4. if they differ, we found a counterexample
         if lhs_val != rhs_val:
@@ -384,62 +486,30 @@ def check_equation_ast(left, right, elements, omega):
     return True, None
 
 
-
-def check_equation_sat(elements, reps, equation):
-    """
-    Returns:
-      {
-        "holds": bool,
-        "counterexample": dict[str, str] | None
-      }
-    """
-
+def check_equation_sat(reps, equation):
     # 1. parse user equation into ASTs
     left, right = parse_equation_to_ast(equation)
+
+    elements = list(reps.keys())
 
     # 2. check equation semantically
     ok, assignment = check_equation_ast(left, right, elements, omega)
 
-    if ok:
-        return {
-            "holds": True,
-            "counterexample": None
-        }
+    if ok: return {"holds": True, "counterexample": None}
 
     # 3. build readable counterexample (VARIABLE → WORD)
     counterexample = {}
     for var, elem in assignment.items():
-        word = reps[tuple(elem)]
+        word = reps[elem]
         counterexample[var] = "ε" if word == "" else word
 
-    return {
-        "holds": False,
-        "counterexample": counterexample
-    }
+    return {"holds": False, "counterexample": counterexample}
 
 
-def check_equations_batch(elements, reps, equations_text):
-    """
-    Check multiple equations given as a multiline string.
+def check_equations_batch(min_dfa, equations_text):
 
-    Parameters
-    ----------
-    elements : list
-        Semigroup elements (transformations)
-    reps : dict
-        Maps tuple(element) -> representative word
-    equations_text : str
-        Multiline user input, one equation per line
+    reps = compute_syntactic_semigroup(min_dfa)
 
-    Returns
-    -------
-    list of dicts, one per equation:
-      {
-        "equation": str,
-        "holds": bool,
-        "counterexample": dict[str, str] | None
-      }
-    """
     results = []
 
     # split lines, ignore empty ones
@@ -451,7 +521,7 @@ def check_equations_batch(elements, reps, equations_text):
 
     for eq in lines:
         try:
-            res = check_equation_sat(elements, reps, eq)
+            res = check_equation_sat(reps, eq)
             results.append({
                 "equation": eq,
                 "holds": res["holds"],
