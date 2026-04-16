@@ -60,7 +60,7 @@ def persist_input_from_request():
 @app.route("/")
 def home():
     return render_template(
-        "indexx.html",
+        "index.html",
         history=session.get("history", []),
         user_input=session.get("last_input", ""),
         processed_input=session.get("processed_input", ""),
