@@ -1,7 +1,6 @@
-from libsemigroups_pybind11 import FroidurePin
 from graphviz import Digraph
 
-from semigroup import build_letter_generators, shortest_representatives
+from semigroup import _build_fp_and_reps
 
 
 
@@ -28,30 +27,23 @@ def cayley_graph_svg(wg, node_labels, alphabet):
 
 
 def froidure_pin_alg(min_dfa):
-    states, alphabet, letter_transf = build_letter_generators(min_dfa)
-
-    gens = [letter_transf[a] for a in alphabet]
-    transf_monoid = FroidurePin(gens)
-    reps = shortest_representatives(alphabet, letter_transf, len(states))
-
     # node labels: show transformation + representative word
-    node_labels = {}
-    for i, x in enumerate(list(transf_monoid)):
-        k = tuple(list(x))
-        w = reps.get(k, "?")
-        # show epsilon nicely
-        w_display = "ε" if w == "" else w
-        node_labels[i] = w_display
-    return transf_monoid, node_labels
+    reps, _fp, _alphabet = _build_fp_and_reps(min_dfa)
+
+    node_labels = {
+        i: ("ε" if w == "" else w)
+        for i, w in enumerate(reps.values())
+    }
+    return _alphabet, _fp, node_labels
 
 
 def right_cayley_graph_svg(min_dfa):
-    transf_monoid, node_labels = froidure_pin_alg(min_dfa)
-    wg = transf_monoid.right_cayley_graph()
-    return cayley_graph_svg(wg, node_labels, sorted(min_dfa._input_symbols, key=str))
+    alphabet, fp, node_labels = froidure_pin_alg(min_dfa)
+    wg = fp.right_cayley_graph()
+    return cayley_graph_svg(wg, node_labels, alphabet)
 
 
 def left_cayley_graph_svg(min_dfa):
-    transf_monoid, node_labels = froidure_pin_alg(min_dfa)
-    wg = transf_monoid.left_cayley_graph()
-    return cayley_graph_svg(wg, node_labels, sorted(min_dfa._input_symbols, key=str))
+    alphabet, fp, node_labels = froidure_pin_alg(min_dfa)
+    wg = fp.left_cayley_graph()
+    return cayley_graph_svg(wg, node_labels, alphabet)

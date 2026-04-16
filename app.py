@@ -129,7 +129,7 @@ def eggbox():
         update_history()
 
         min_dfa = build_min_dfa_from_session()
-        svg = sg.visualize_syntactic_monoid(min_dfa)
+        svg = sg.visualize_syntactic_semigroup(min_dfa)
         session["eggbox_svg"] = svg
         session["error"] = None
     except Exception as e:
@@ -212,8 +212,7 @@ def equations():
             return redirect("/")
 
         min_dfa = build_min_dfa_from_session()
-        elements, reps = sg.compute_syntactic_semigroup(min_dfa)
-        results = sg.check_equations_batch(elements, reps, equation_input)
+        results = sg.check_equations_batch(min_dfa, equation_input)
 
         session["equation_result"] = format_results(results)
         session["error"] = None
@@ -230,8 +229,7 @@ def multiplication_table():
         update_history()
 
         min_dfa = build_min_dfa_from_session()
-        elements, reps = sg.compute_syntactic_semigroup(min_dfa)
-        latex = sg.multiplication_table_to_latex(elements, reps)
+        latex = sg.multiplication_table_to_latex(min_dfa)
 
         return jsonify({"latex": latex})
 
