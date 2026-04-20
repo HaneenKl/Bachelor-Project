@@ -135,15 +135,6 @@ def build_adj(wg):
 
 
 def compute_green_classes_semigroup(min_dfa):
-    """
-    Returns:
-      fp           : FroidurePin enumeration
-      reps         : dict transf tuple -> the shortest representative word
-      r_class      : dict node_index -> r_class_id  (from right Cayley graph SCCs)
-      l_class      : dict node_index -> l_class_id  (from left Cayley graph SCCs)
-      d_class      : dict node_index -> d_class_id
-    """
-
     reps, fp, _alphabet = build_fp_and_reps(min_dfa)
 
     n = fp.size()
@@ -192,10 +183,10 @@ def compute_green_classes_semigroup(min_dfa):
 
     node_to_d = {node: find(node_to_r[node]) for node in range(n)}
 
-    return fp, reps, node_to_r, node_to_l, node_to_d
+    return _alphabet, fp, reps, node_to_r, node_to_l, node_to_d
 
 def compute_green_classes_monoid(min_dfa):
-    _fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
+    _alphabet, _fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
 
     fp_elems = list(reps.keys())
     n_states = len(fp_elems[0])
@@ -215,13 +206,16 @@ def compute_green_classes_monoid(min_dfa):
         node_to_l[n] = new_id
         node_to_d[n] = new_id
 
-    return _fp, reps, node_to_r, node_to_l, node_to_d
+    return _alphabet, _fp, reps, node_to_r, node_to_l, node_to_d
 
 
 ############--- Egg-box diagram ---##############
-def build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d):
+def build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d, stable):
     fp_elems = list(reps.keys())
     n = len(fp_elems)
+
+    n_states = len(fp_elems[0])
+    identity = tuple(range(n_states))
 
     def word(t):
         return reps.get(t, "?")
@@ -252,11 +246,20 @@ def build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d):
             r = r_index[node_to_r[i]]
             l = l_index[node_to_l[i]]
             w = word(fp_elems[i])
-            cells[(r, l)].append("ε" if w == "" else w)
+            is_stable = stable is not None and fp_elems[i] in stable
+            if w == "":
+                display_word = "ε"
+                ###change later maybe: to show "aa=ε" for example
+            elif fp_elems[i] == identity:
+                display_word = "ε"
+            else:
+                display_word = w
+
+            cells[(r, l)].append((display_word, is_stable))
 
         # sort words within each H-class
         for key in cells:
-            cells[key].sort(key=lambda wrd: (wrd != "ε", len(wrd), wrd))
+            cells[key].sort(key=lambda pair: (pair[0] != "ε", len(pair[0]), pair[0]))
 
         eggboxes.append({
             "n_rows": len(r_ids),
@@ -264,16 +267,20 @@ def build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d):
             "cells": cells,
         })
 
-    return plot_eggbox_svg(eggboxes)
+    return eggboxes
 
 def visualize_syntactic_semigroup(min_dfa):
-    fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
-    return build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d)
+    alphabet, fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
+    stable = compute_stable_subsemigroup(reps, alphabet)
+    eggboxes = build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d, stable)
+    return plot_eggbox_svg(eggboxes)
 
 
 def visualize_syntactic_monoid(min_dfa):
-    fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_monoid(min_dfa)
-    return build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d)
+    alphabet, fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_monoid(min_dfa)
+    stable = compute_stable_subsemigroup(reps, alphabet)
+    eggboxes = build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d, stable)
+    return plot_eggbox_svg(eggboxes)
 
 def plot_eggbox_svg(eggboxes):
     dot = Digraph(format="svg")
@@ -290,11 +297,14 @@ def plot_eggbox_svg(eggboxes):
         for r in range(n_rows):
             table.append("<tr>")
             for c in range(n_cols):
-                words = cells.get((r, c), [])
-                if not words:
+                entries = cells.get((r, c), [])
+                if not entries:
                     table.append("<td width='100'> </td>")
                 else:
-                    display = ", ".join(words)
+                    display = ", ".join(
+                        f"<font color='green'>{w}</font>" if s else w
+                        for w, s in entries
+                    )
                     table.append(f"<td width='100' align='center'><b>{display}</b></td>")
             table.append("</tr>")
 
@@ -364,11 +374,22 @@ def reps_to_latex(reps):
 
 def multiplication_table_to_latex_semigroup(min_dfa):
     reps = compute_syntactic_semigroup(min_dfa)
+    fp_elements = list(reps.keys())
+    n_states = len(fp_elements[0])
+    identity = tuple(range(n_states))
+    if identity in set(fp_elements):
+        reps[identity] = ""
+
     return reps_to_latex(reps)
 
 
 def multiplication_table_to_latex_monoid(min_dfa):
     reps = compute_syntactic_monoid(min_dfa)
+    fp_elements = list(reps.keys())
+    n_states = len(fp_elements[0])
+    identity = tuple(range(n_states))
+    reps[identity] = ""
+
     return reps_to_latex(reps)
 
 
@@ -574,3 +595,25 @@ def check_equations_batch_semigroup(min_dfa, equations_text):
 def check_equations_batch_monoid(min_dfa, equations_text):
     reps = compute_syntactic_monoid(min_dfa)
     return check_equations_with_reps(reps, equations_text)
+
+
+######--- stable semigroup ---####
+def compute_stable_subsemigroup(reps, alphabet):
+
+    word_to_trans = {w: t for t, w in reps.items()}
+    generators = {word_to_trans[a] for a in alphabet}
+
+    current = set(generators)
+    s = 1
+    while True:
+        squared = {mul(a, b) for a in current for b in current}
+        if current == squared:
+            return current
+        current = {mul(a, b) for a in current for b in generators}
+
+#       left  = {mul(g, p) for g in generators for p in current}
+#       right = {mul(p, g) for p in current for g in generators}
+#       current = left | right
+        s += 1
+
+
