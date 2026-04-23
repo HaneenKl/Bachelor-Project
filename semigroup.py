@@ -214,6 +214,8 @@ def build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d, stable):
     fp_elems = list(reps.keys())
     n = len(fp_elems)
 
+    idempotents = {e for e in fp_elems if mul(e, e) == e}
+
     n_states = len(fp_elems[0])
     identity = tuple(range(n_states))
 
@@ -247,6 +249,7 @@ def build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d, stable):
             l = l_index[node_to_l[i]]
             w = word(fp_elems[i])
             is_stable = stable is not None and fp_elems[i] in stable
+            is_idempotent = idempotents is not None and fp_elems[i] in idempotents
             if w == "":
                 display_word = "ε"
                 ###change later maybe: to show "aa=ε" for example
@@ -255,11 +258,11 @@ def build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d, stable):
             else:
                 display_word = w
 
-            cells[(r, l)].append((display_word, is_stable))
+            cells[(r, l)].append((display_word, is_stable, is_idempotent))
 
         # sort words within each H-class
         for key in cells:
-            cells[key].sort(key=lambda pair: (pair[0] != "ε", len(pair[0]), pair[0]))
+            cells[key].sort(key=lambda triple: (triple[0] != "ε", len(triple[0]), triple[0]))
 
         eggboxes.append({
             "n_rows": len(r_ids),
@@ -301,10 +304,10 @@ def plot_eggbox_svg(eggboxes):
                 if not entries:
                     table.append("<td width='100'> </td>")
                 else:
-                    display = ", ".join(
-                        f"<font color='green'>{w}</font>" if s else w
-                        for w, s in entries
-                    )
+                    def fmt_entry(w, s, idem):
+                        label = w + ("*" if idem else "")
+                        return f"<font color='green'>{label}</font>" if s else label
+                    display = ", ".join(fmt_entry(w, s, idem) for w, s, idem in entries)
                     table.append(f"<td width='100' align='center'><b>{display}</b></td>")
             table.append("</tr>")
 
