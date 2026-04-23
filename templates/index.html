@@ -14,9 +14,9 @@
 <body style="background: var(--bs-light);">
 <div class="container-fluid">
     {% if error %}
-    <div class="alert alert-danger m-3">
-        {{ error }}
-    </div>
+        <div class="alert alert-danger m-3">
+            {{ error }}
+        </div>
     {% endif %}
     <div class="d-flex justify-content-end align-items-center p-3 gap-4">
 
@@ -41,16 +41,16 @@
                 <h5 class="card-title">History</h5>
 
                 {% if history %}
-                <ul class="list-group list-group-flush">
-                    {% for entry in history %}
-                    <li class="list-group-item">
-                        <strong>{{ entry.mode }}</strong>:
-                        <code>{{ entry.input }}</code>
-                    </li>
-                    {% endfor %}
-                </ul>
+                    <ul class="list-group list-group-flush">
+                        {% for entry in history %}
+                            <li class="list-group-item">
+                                <strong>{{ entry.mode }}</strong>:
+                                <code>{{ entry.input }}</code>
+                            </li>
+                        {% endfor %}
+                    </ul>
                 {% else %}
-                <p class="mb-0 text-muted">No inputs yet.</p>
+                    <p class="mb-0 text-muted">No inputs yet.</p>
                 {% endif %}
 
                 <form method="POST" action="/clear_history" class="mt-2">
@@ -231,44 +231,65 @@
         </p>
     </div>
 </div>
-<div class="col {% if not svg %}invisible{% endif %}" id="eggBoxCol">
+<div class="col {% if not svg or hide_eggbox %}d-none{% endif %}" id="eggBoxCol">
     <div class="card">
         <div class="card-body text-center" id="eggBoxCard">
-            <h4 class="card-title" style="text-align: center;">EggBox-Diagram ({{ structure | default('Semigroup') | title }})</h4>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <h4 class="card-title" style="text-align: center;">EggBox-Diagram
+                    ({{ structure | default('Semigroup') | title }})</h4>
+                <form method="POST" action="/hide/eggbox">
+                    <button type="submit" class="btn-close" aria-label="Close"></button>
+                </form>
+            </div>
             {% if svg %}
-            {{ svg | safe }}
+                {{ svg | safe }}
             {% endif %}
         </div>
     </div>
 </div>
 <div class="container">
     <div class="row" id="cayleyRow">
-        <div class="col-md-6 {% if not left_svg %}d-none{% endif %}">
+        <div class="col-md-6 {% if not left_svg or hide_left_cayley %}d-none{% endif %}" id="leftCayleyCol">
             <div class="card">
                 <div class="card-body" id="leftCayleyCard">
-                    <h4 class="card-title" style="text-align: center;">Left Cayley Graph</h4>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <h4 class="card-title" style="text-align: center;">Left Cayley Graph</h4>
+                        <form method="POST" action="/hide/left_cayley">
+                            <button type="submit" class="btn-close" aria-label="Close"></button>
+                        </form>
+                    </div>
                     {% if left_svg %}
-                    {{ left_svg | safe }}
+                        {{ left_svg | safe }}
                     {% endif %}
                 </div>
             </div>
         </div>
-        <div class="col-md-6 {% if not right_svg %}d-none{% endif %}">
+        <div class="col-md-6 {% if not right_svg or hide_right_cayley %}d-none{% endif %}" id="rightCayleyCol">
             <div class="card">
                 <div class="card-body" id="rightCayleyCard">
-                    <h4 class="card-title" style="text-align: center;">Right Cayley Graph</h4>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <h4 class="card-title" style="text-align: center;">Right Cayley Graph</h4>
+                        <form method="POST" action="/hide/right_cayley">
+                            <button type="submit" class="btn-close" aria-label="Close"></button>
+                        </form>
+                    </div>
                     {% if right_svg %}
-                    {{ right_svg | safe }}
+                        {{ right_svg | safe }}
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
-<div class="col {% if not show_equations %}d-none{% endif %}" id="equationCol">
-    <p style="margin: 50px 50px 0;">check if multiple equations hold ({{ structure | default('Semigroup') | title }})</p>
+<div class="col {% if not show_equations or hide_equations %}d-none{% endif %}" id="equationCol">
+    <div class="d-flex align-items-center" style="margin: 50px 50px 0;">
+        <p style="margin: 50px 50px 0;">check if multiple equations hold
+            ({{ structure | default('Semigroup') | title }})</p>
+        <form method="POST" action="/hide/equations">
+            <button type="submit" class="btn-close" aria-label="Close"></button>
+        </form>
+    </div>
     <form method="POST" action="/equations">
-
         <input type="hidden" name="mode" value="{{ request.form.mode }}">
         <input type="hidden" name="user_input" value="{{ user_input }}">
         <input type="hidden" name="processed_input" value="{{ processed_input }}">
@@ -276,22 +297,24 @@
         <input type="hidden" name="evaluate" value="1">
         <label for="equationInput"></label><textarea id="equationInput" name="equation"
                                                      style="margin: 5px 25px 25px 50px;"
-                                                     placeholder="enter multiple equations here..">{% if equation %}{{ equation }}{% endif %}</textarea>
+                                                     placeholder="enter multiple equations here..">{% if equation %}
+        {{ equation }}{% endif %}</textarea>
         <button class="btn btn-primary" id="checkButton" type="submit"
                 style="background: var(--bs-green);font-weight: bold;">check
         </button>
     </form>
     {% if equation_result %}
-    <div class="card">
-        <div class="card-body" id="equationCheckCard">
-            <pre class="mb-0">{{ equation_result }}</pre>
+        <div class="card">
+            <div class="card-body" id="equationCheckCard">
+                <pre class="mb-0">{{ equation_result }}</pre>
+            </div>
         </div>
-    </div>
     {% endif %}
 </div>
 
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999">
-    <div id="copyToast" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive">
+    <div id="copyToast" class="toast align-items-center text-bg-success border-0" role="alert"
+         aria-live="assertive">
         <div class="d-flex">
             <div class="toast-body fw-bold">
                 ✓ Multiplication table copied to clipboard!

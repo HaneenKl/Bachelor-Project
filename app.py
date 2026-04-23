@@ -48,6 +48,10 @@ def persist_input_from_request():
             "equation",
             "multiplication_table",
             "structure",
+            "hide_equations",
+            "hide_left_cayley",
+            "hide_right_cayley",
+            "hide_eggbox",
         ]:
             session.pop(key, None)
         session["show_equations"] = False
@@ -74,13 +78,25 @@ def home():
         space_mode=session.get("last_space_mode", "off"),
         multiplication_table=session.get("multiplication_table"),
         last_mode=session.get("last_mode"),
-        structure = session.get("structure", "semigroup"),
+        structure=session.get("structure", "semigroup"),
+        hide_equations=session.get("hide_equations", False),
+        hide_left_cayley=session.get("hide_left_cayley", False),
+        hide_right_cayley=session.get("hide_right_cayley", False),
+        hide_eggbox=session.get("hide_eggbox", False),
     )
 
 
 @app.route("/docs")
 def docs():
     return render_template("docs.html")
+
+
+@app.route("/hide/<panel>", methods=["POST"])
+def hide_panel(panel):
+    allowed = {"equations", "left_cayley", "right_cayley", "eggbox"}
+    if panel in allowed:
+        session[f"hide_{panel}"] = True
+    return redirect("/")
 
 
 @app.route("/clear_history", methods=["POST"])
@@ -140,6 +156,7 @@ def eggbox():
         else:
             svg = sg.visualize_syntactic_semigroup(min_dfa)
         session["eggbox_svg"] = svg
+        session.pop("hide_eggbox", None)
         session["error"] = None
     except Exception as e:
         session["error"] = f"Error computing eggbox: {e}"
@@ -154,11 +171,13 @@ def left_cayley():
 
         min_dfa = build_min_dfa_from_session()
         left_svg = cg.left_cayley_graph_svg(min_dfa)
+        session.pop("hide_left_cayley", None)
         session["left_svg"] = left_svg
         session["error"] = None
     except Exception as e:
         session["error"] = f"Error computing left Cayley graph: {e}"
     return redirect("/")
+
 
 @app.route("/right_cayley", methods=["POST"])
 def right_cayley():
@@ -168,12 +187,14 @@ def right_cayley():
 
         min_dfa = build_min_dfa_from_session()
         right_svg = cg.right_cayley_graph_svg(min_dfa)
+        session.pop("hide_right_cayley", None)
         session["right_svg"] = right_svg
         session["error"] = None
     except Exception as e:
         session["error"] = f"Error computing right Cayley graph: {e}"
 
     return redirect("/")
+
 
 @app.route("/equations/show", methods=["POST"])
 def show_equations():
@@ -187,11 +208,13 @@ def show_equations():
         session["show_equations"] = True
         session.pop("equation_result", None)
         session.pop("equation", None)
+        session.pop("hide_equations", None)
         session["error"] = None
     except Exception as e:
         session["error"] = f"Error opening equation UI: {e}"
 
     return redirect("/")
+
 
 def format_results(results):
     output_lines = []
@@ -210,6 +233,7 @@ def format_results(results):
                 line += f", error: {res['error']}"
             output_lines.append(line)
     return "\n".join(output_lines)
+
 
 @app.route("/equations", methods=["POST"])
 def equations():
@@ -237,6 +261,7 @@ def equations():
         session["error"] = f"Error checking equations: {e}"
 
     return redirect("/")
+
 
 @app.route("/multiplication_table", methods=["POST"])
 def multiplication_table():
