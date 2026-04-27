@@ -70,18 +70,22 @@
             <input type="hidden" name="mode" id="modeInput" required>
 
             <div class="m-5" style="border-radius: 10px;">
-                <div class="dropdown" data-bs-toggle="tooltip" data-bss-tooltip="">
-                    <button class="btn btn-primary dropdown-toggle" aria-expanded="false" data-bs-toggle="dropdown"
-                            id="selectMenuButton" type="button" style="background: var(--bs-green);font-weight: bold;">
-                        choose input type
-                    </button>
-                    <div class="dropdown-menu" id="selectMenu" style="background: var(--bs-success-bg-subtle);"><a
-                            class="dropdown-item" data-bs-toggle="tooltip" data-bss-tooltip="" id="arden" href="#"
-                            onclick="setMode('arden','arden expression')">arden
-                        expression</a><a class="dropdown-item" data-bs-toggle="tooltip" data-bss-tooltip="" id="regex"
-                                         href="#" onclick="setMode('regex','regular expression')">regular expression</a>
+
+                <div class="d-flex gap-3 mb-2">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="modeRadio" id="radioArden" value="arden"
+                               onchange="setMode('arden')"
+                               {% if last_mode == 'arden' %}checked{% endif %}>
+                        <label class="form-check-label fw-bold" for="radioArden">arden expression</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="modeRadio" id="radioRegex" value="regex"
+                               onchange="setMode('regex')"
+                               {% if last_mode == 'regex' %}checked{% endif %}>
+                        <label class="form-check-label fw-bold" for="radioRegex">regular expression</label>
                     </div>
                 </div>
+
                 <label for="input_field"></label><textarea id="input_field"
                                                            name="user_input"
                                                            class="form-control"
@@ -89,17 +93,13 @@
                                                            oninput="updateComputeButtons()"
                                                            placeholder="enter input ..."
                                                            style="border-radius: 5px;border-width: 1px;">{{ user_input | default('') }}</textarea>
-                <div class="form-check">
-                    <div class="form-check" id="spaceModeWrapper" style="display: none;">
-                        <input class="form-check-input" type="checkbox" id="checkBox" onchange="toggleSpaceMode(this)"
-                               data-space-mode="{{ space_mode }}">
-                        <input type="hidden" name="space_mode" id="spaceModeInput">
-                        <label
-                                class="form-check-label"
-                                for="checkBox"><span
-                                style="color: rgb(0, 0, 0);">treat each letter as a symbol</span>
-                        </label>
-                    </div>
+                <div class="form-check mt-2" id="spaceModeWrapper">
+                    <input class="form-check-input" type="checkbox" id="checkBox" onchange="toggleSpaceMode(this)"
+                           data-space-mode="{{ space_mode }}">
+                    <input type="hidden" name="space_mode" id="spaceModeInput">
+                    <label class="form-check-label" for="checkBox">
+                        <span style="color: rgb(0, 0, 0);">treat each letter as a symbol</span>
+                    </label>
                 </div>
 
                 <input type="hidden" name="structure" id="structureInput" value="semigroup">
@@ -153,6 +153,32 @@
                             </button>
                             <button class="dropdown-item" type="button"
                                     onclick="copyMultiplicationTable('monoid')">
+                                Copy Multiplication Table
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="dropdown">
+                        <button class="btn btn-primary dropdown-toggle"
+                                id="stDropdown"
+                                type="button"
+                                disabled
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                                style="background: var(--bs-green);font-weight: bold;">
+                            Stable Semigroup
+                        </button>
+                        <div class="dropdown-menu" style="background: var(--bs-success-bg-subtle);">
+                            <button class="dropdown-item" type="submit" formaction="/eggbox"
+                                    onclick="document.getElementById('structureInput').value='stable'">
+                                Egg-box Diagram
+                            </button>
+                            <button class="dropdown-item" type="submit" formaction="/equations/show"
+                                    onclick="document.getElementById('structureInput').value='stable'">
+                                Check Equations
+                            </button>
+                            <button class="dropdown-item" type="button"
+                                    onclick="copyMultiplicationTable('stable')">
                                 Copy Multiplication Table
                             </button>
                         </div>
@@ -339,30 +365,40 @@
 
         document.getElementById("sgDropdown").disabled = !enabled;
         document.getElementById("moDropdown").disabled = !enabled;
+        document.getElementById("stDropdown").disabled = !enabled;
         document.getElementById("lgButton").disabled = !enabled;
         document.getElementById("rgButton").disabled = !enabled;
     }
 </script>
 
 <script>
-    function setMode(value, label) {
+    function setMode(value, restoreSpaceMode = null) {
         document.getElementById("modeInput").value = value;
-        document.getElementById("selectMenuButton").textContent = label;
 
         const spaceWrapper = document.getElementById("spaceModeWrapper");
+        const checkBox = document.getElementById("checkBox");
         const ardenHint = document.getElementById("ardenHint");
         const regexHint = document.getElementById("regexHint");
 
         if (value === "arden") {
-            spaceWrapper.style.display = "none";
+            spaceWrapper.style.opacity = "0.4";
+            spaceWrapper.style.pointerEvents = "none";
             document.getElementById("spaceModeInput").value = "off";
-            document.getElementById("checkBox").checked = false;
+            checkBox.checked = false;
             ardenHint.style.display = "block";
             regexHint.style.display = "none";
         } else if (value === "regex") {
-            spaceWrapper.style.display = "block";
+            spaceWrapper.style.opacity = "1";
+            spaceWrapper.style.pointerEvents = "auto";
             ardenHint.style.display = "none";
             regexHint.style.display = "block";
+            if (restoreSpaceMode !== null) {
+                checkBox.checked = (restoreSpaceMode === "on");
+                document.getElementById("spaceModeInput").value = restoreSpaceMode;
+            } else {
+                checkBox.checked = true;
+                document.getElementById("spaceModeInput").value = "on";
+            }
         }
         updateComputeButtons();
     }
@@ -412,41 +448,15 @@
     document.addEventListener("DOMContentLoaded", () => {
         const cb = document.getElementById("checkBox");
         const hidden = document.getElementById("spaceModeInput");
+        const savedMode = "{{ last_mode | default('') }}";
+        const savedSpaceMode = "{{ space_mode | default('') }}";
 
-        cb.checked = (cb.dataset.spaceMode === "on");
-
-        hidden.value = cb.checked ? "on" : "off";
+        if (savedMode) setMode(savedMode, savedSpaceMode || "on");
 
         cb.addEventListener("change", () => {
             hidden.value = cb.checked ? "on" : "off";
         });
-    });
-</script>
 
-<script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const savedMode = "{{ last_mode | default('') }}";
-        const spaceWrapper = document.getElementById("spaceModeWrapper");
-        const ardenHint = document.getElementById("ardenHint");
-        const regexHint = document.getElementById("regexHint");
-
-        if (savedMode) {
-            if (savedMode === "arden") {
-                setMode("arden", "arden expression");
-                spaceWrapper.style.display = "none";
-                ardenHint.style.display = "block";
-                regexHint.style.display = "none";
-            } else if (savedMode === "regex") {
-                setMode("regex", "regular expression");
-                ardenHint.style.display = "none";
-                regexHint.style.display = "block";
-            }
-        }
-    });
-</script>
-
-<script>
-    document.addEventListener("DOMContentLoaded", () => {
         updateComputeButtons();
     });
 </script>
