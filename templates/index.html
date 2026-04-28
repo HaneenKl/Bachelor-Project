@@ -45,7 +45,7 @@
                         {% for entry in history %}
                             <li class="list-group-item">
                                 <strong>{{ entry.mode }}</strong>:
-                                <code>{{ entry.input }}</code>
+                                <pre class="mb-0"><code>{{ entry.input }}</code></pre>
                             </li>
                         {% endfor %}
                     </ul>
