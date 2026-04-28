@@ -55,12 +55,14 @@ def build_fp_and_reps(min_dfa):
 
     return reps, fp, alphabet
 
+
 def compute_syntactic_semigroup(min_dfa):
     reps, _fp, _alphabet = build_fp_and_reps(min_dfa)
-    return reps
+    return reps, _alphabet
+
 
 def compute_syntactic_monoid(min_dfa):
-    reps = compute_syntactic_semigroup(min_dfa)
+    reps, _alphabet = compute_syntactic_semigroup(min_dfa)
 
     # add identity to reps if not already present
     n_states = len(next(iter(reps.keys())))
@@ -69,6 +71,7 @@ def compute_syntactic_monoid(min_dfa):
         reps[identity] = ""
 
     return reps
+
 
 ############--- Green's relations from Cayley graphs ---##############
 def kosaraju_sccs(n, adj):
@@ -185,6 +188,7 @@ def compute_green_classes_semigroup(min_dfa):
 
     return _alphabet, fp, reps, node_to_r, node_to_l, node_to_d
 
+
 def compute_green_classes_monoid(min_dfa):
     _alphabet, _fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
 
@@ -210,7 +214,7 @@ def compute_green_classes_monoid(min_dfa):
 
 
 ############--- Egg-box diagram ---##############
-def build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d, stable):
+def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable):
     fp_elems = list(reps.keys())
     n = len(fp_elems)
 
@@ -272,18 +276,47 @@ def build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d, stable):
 
     return eggboxes
 
+
 def visualize_syntactic_semigroup(min_dfa):
     alphabet, fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
     stable = compute_stable_subsemigroup(reps, alphabet)
-    eggboxes = build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d, stable)
+    eggboxes = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable)
     return plot_eggbox_svg(eggboxes)
+
+
+def _restrict_to_stable(alphabet, reps, node_to_r, node_to_l, node_to_d):
+    stable = compute_stable_subsemigroup(reps, alphabet)
+
+    fp_elems = list(reps.keys())
+
+    # keep only fp-indices whose element is stable, preserving original order
+    kept = [i for i, e in enumerate(fp_elems) if e in stable]
+
+    # new compact indices
+    old_to_new = {old: new for new, old in enumerate(kept)}
+
+    reps_stable = {fp_elems[i]: reps[fp_elems[i]] for i in kept}
+    node_to_r_s = {old_to_new[i]: node_to_r[i] for i in kept}
+    node_to_l_s = {old_to_new[i]: node_to_l[i] for i in kept}
+    node_to_d_s = {old_to_new[i]: node_to_d[i] for i in kept}
+
+    return reps_stable, node_to_r_s, node_to_l_s, node_to_d_s, stable
 
 
 def visualize_syntactic_monoid(min_dfa):
     alphabet, fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_monoid(min_dfa)
     stable = compute_stable_subsemigroup(reps, alphabet)
-    eggboxes = build_eggbox_svg(fp, reps, node_to_r, node_to_l, node_to_d, stable)
+    eggboxes = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable)
     return plot_eggbox_svg(eggboxes)
+
+
+def visualize_syntactic_stable_semigroup(min_dfa):
+    alphabet, fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
+    reps_s, node_to_r_s, node_to_l_s, node_to_d_s, stable = _restrict_to_stable(
+        alphabet, reps, node_to_r, node_to_l, node_to_d)
+    eggboxes = build_eggbox_svg(reps_s, node_to_r_s, node_to_l_s, node_to_d_s, stable)
+    return plot_eggbox_svg(eggboxes)
+
 
 def plot_eggbox_svg(eggboxes):
     dot = Digraph(format="svg")
@@ -295,7 +328,7 @@ def plot_eggbox_svg(eggboxes):
         n_cols = box["n_cols"]
         cells = box["cells"]
 
-        table = ['<table border="1" cellborder="1" cellspacing="0">',]
+        table = ['<table border="1" cellborder="1" cellspacing="0">', ]
 
         for r in range(n_rows):
             table.append("<tr>")
@@ -307,6 +340,7 @@ def plot_eggbox_svg(eggboxes):
                     def fmt_entry(w, s, idem):
                         label = w + ("*" if idem else "")
                         return f"<font color='green'>{label}</font>" if s else label
+
                     display = ", ".join(fmt_entry(w, s, idem) for w, s, idem in entries)
                     table.append(f"<td width='100' align='center'><b>{display}</b></td>")
             table.append("</tr>")
@@ -314,7 +348,7 @@ def plot_eggbox_svg(eggboxes):
         table.append("</table>")
         dot.node(f"D{i}", label="<" + "".join(table) + ">")
     for i in range(len(eggboxes) - 1):
-        dot.edge(f"D{i}", f"D{i+1}", style="invis")
+        dot.edge(f"D{i}", f"D{i + 1}", style="invis")
 
     return dot.pipe(format="svg").decode("utf-8")
 
@@ -322,6 +356,7 @@ def plot_eggbox_svg(eggboxes):
 ############--- Latex multiplication table ---##############
 def mul(f, g):
     return tuple(g[f[q]] for q in range(len(f)))
+
 
 def sort_elements(reps):
     elements = list(reps.keys())
@@ -341,6 +376,7 @@ def sort_elements(reps):
         return 1, reps[e]
 
     return sorted(elements, key=sort_key)
+
 
 def build_multiplication_table(reps):
     elements = sort_elements(reps)
@@ -376,7 +412,7 @@ def reps_to_latex(reps):
 
 
 def multiplication_table_to_latex_semigroup(min_dfa):
-    reps = compute_syntactic_semigroup(min_dfa)
+    reps, _alphabet = compute_syntactic_semigroup(min_dfa)
     fp_elements = list(reps.keys())
     n_states = len(fp_elements[0])
     identity = tuple(range(n_states))
@@ -396,9 +432,25 @@ def multiplication_table_to_latex_monoid(min_dfa):
     return reps_to_latex(reps)
 
 
+def multiplication_table_to_latex_stable_semigroup(min_dfa):
+    reps, alphabet = compute_syntactic_semigroup(min_dfa)
+    stable = compute_stable_subsemigroup(reps, alphabet)
+
+    reps_stable = {e: w for e, w in reps.items() if e in stable}
+
+    fp_elements = list(reps_stable.keys())
+    if fp_elements:
+        n_states = len(fp_elements[0])
+        identity = tuple(range(n_states))
+        if identity in set(fp_elements):
+            reps_stable[identity] = ""
+
+    return reps_to_latex(reps_stable)
+
+
 ############--- Equation checking ---##############
 def tokenize(s):
-    return re.findall(r'\(|\)|\^|=|w|\d+|[a-zA-Z]+', s)
+    return re.findall(r'\(|\)|\^|=|-|w|\d+|[a-zA-Z]+', s)
 
 
 def parse_equation_to_ast(s):
@@ -425,14 +477,33 @@ def parse_equation_to_ast(s):
             node = tokens[i]
             i += 1
 
-        # optional power
+        # optional power: ^w, ^(w-1), or ^<integer>
         if i < len(tokens) and tokens[i] == '^':
             i += 1
-            if tokens[i] == 'w':
+            if tokens[i] == '(':
+                # expect (w-1)
+                i += 1  # consume '('
+                if tokens[i] != 'w':
+                    raise ValueError("Expected 'w' inside '^(...)'")
+                i += 1  # consume 'w'
+                if tokens[i] != '-':
+                    raise ValueError("Expected '-' after 'w' inside '^(...)'")
+                i += 1  # consume '-'
+                if tokens[i] != '1':
+                    raise ValueError(
+                        "Only '^(w-1)' is supported, not '^(w-{})'".format(tokens[i])
+                    )
+                i += 1  # consume '1'
+                if tokens[i] != ')':
+                    raise ValueError("Expected ')' to close '^(...)'")
+                i += 1  # consume ')'
+                node = ("pow", node, "omega-1")
+            elif tokens[i] == 'w':
                 node = ("pow", node, "omega")
+                i += 1
             else:
                 node = ("pow", node, int(tokens[i]))
-            i += 1
+                i += 1
 
         return node
 
@@ -458,7 +529,8 @@ def repeat(x, n):
 
 
 def eval_expr(expr, assignment, omega_f):
-    if isinstance(expr, str):  # variable
+    # variable
+    if isinstance(expr, str):
         return assignment[expr]
 
     kind = expr[0]
@@ -475,6 +547,8 @@ def eval_expr(expr, assignment, omega_f):
 
         if exp == "omega":
             return omega_f(base)
+        elif exp == "omega-1":
+            return omega_minus_1(base)
         else:
             return repeat(base, exp)
     return None
@@ -501,8 +575,40 @@ def omega(x):
     for e in cycle:
         if mul(e, e) == e:
             return e
+    raise RuntimeError("No idempotent found in cycle")
 
-    raise RuntimeError("No idempotent found")
+
+def omega_minus_1(x):
+    """
+    Compute x^(w-1) for a semigroup element x.
+    """
+    seen = {}
+    seq = []
+
+    cur = x
+    while tuple(cur) not in seen:
+        seen[tuple(cur)] = len(seq)
+        seq.append(cur)
+        cur = mul(cur, x)
+
+    # cur is now the first repeated element; seq[cycle_start:] is the cycle
+    cycle_start = seen[tuple(cur)]
+
+    # find the idempotent e = x^w in the cycle
+    e = None
+    for elem in seq[cycle_start:]:
+        if mul(elem, elem) == elem:
+            e = elem
+            break
+    if e is None:
+        raise RuntimeError("No idempotent found in cycle")
+
+    # x^(w-1) is the element y in the cycle such that y * x = e
+    for y in seq[cycle_start:]:
+        if mul(y, x) == e:
+            return y
+
+    raise RuntimeError("x^(w-1) not found in cycle")
 
 
 def vars_in(expr):
@@ -591,7 +697,7 @@ def check_equations_with_reps(reps, equations_text):
 
 
 def check_equations_batch_semigroup(min_dfa, equations_text):
-    reps = compute_syntactic_semigroup(min_dfa)
+    reps, _alphabet = compute_syntactic_semigroup(min_dfa)
     return check_equations_with_reps(reps, equations_text)
 
 
@@ -600,9 +706,68 @@ def check_equations_batch_monoid(min_dfa, equations_text):
     return check_equations_with_reps(reps, equations_text)
 
 
+def check_equations_batch_stable_semigroup(min_dfa, equations_text):
+    reps, alphabet = compute_syntactic_semigroup(min_dfa)
+    stable = compute_stable_subsemigroup(reps, alphabet)
+    reps_stable = {e: w for e, w in reps.items() if e in stable}
+    return check_equations_with_reps(reps_stable, equations_text)
+
+
+
+def add_spacing_to_equation(s):
+    out = []
+    i = 0
+    n = len(s)
+
+    def emit_and_maybe_space(chunk, next_char):
+        out.append(chunk)
+        # space if next char starts a new symbol (letter or '(')
+        if next_char and (next_char.isalpha() or next_char == '('):
+            out.append(' ')
+
+    while i < n:
+        c = s[i]
+
+        # '^(w-1)' — copy verbatim
+        if c == '^' and i + 1 < n and s[i+1] == '(':
+            j = s.find(')', i)
+            if j == -1:
+                out.append(s[i:]); break
+            chunk = s[i:j+1]
+            i = j + 1
+            emit_and_maybe_space(chunk, s[i] if i < n else '')
+            continue
+
+        # '^w' or '^<digits>'
+        if c == '^':
+            i += 1
+            exp_start = i
+            if i < n and s[i] == 'w':
+                i += 1
+            else:
+                while i < n and s[i].isdigit():
+                    i += 1
+            chunk = '^' + s[exp_start:i]
+            emit_and_maybe_space(chunk, s[i] if i < n else '')
+            continue
+
+        # plain char
+        out.append(c)
+        i += 1
+        if i < n:
+            nxt = s[i]
+            if c.isalpha() and (nxt.isalpha() or nxt == '('):
+                out.append(' ')
+
+    result = ''.join(out)
+    result = re.sub(r'\s+', ' ', result)
+    result = re.sub(r'\s*=\s*', ' = ', result)
+    return result.strip()
+
+
+
 ######--- stable semigroup ---####
 def compute_stable_subsemigroup(reps, alphabet):
-
     word_to_trans = {w: t for t, w in reps.items()}
     generators = {word_to_trans[a] for a in alphabet}
 
@@ -618,5 +783,3 @@ def compute_stable_subsemigroup(reps, alphabet):
 #       right = {mul(p, g) for p in current for g in generators}
 #       current = left | right
         s += 1
-
-
