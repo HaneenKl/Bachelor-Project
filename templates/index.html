@@ -359,9 +359,9 @@
 
 <script>
     function updateComputeButtons() {
-        const mode = document.getElementById("modeInput").value;
         const input = document.getElementById("input_field").value.trim();
-        const enabled = !!(mode && input);
+        const radioChecked = !!document.querySelector('input[name="modeRadio"]:checked');
+        const enabled = !!(input && radioChecked);
 
         document.getElementById("sgDropdown").disabled = !enabled;
         document.getElementById("moDropdown").disabled = !enabled;
