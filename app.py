@@ -136,7 +136,7 @@ def build_min_dfa_from_session():
         return aut.regex_to_pyformlang_min_dfa(user_input)
 
     if mode == "arden":
-        return aut.arden_to_pyformlang_min_dfa(user_input)
+        return aut.arden_to_min_dfa(user_input)
 
     raise ValueError("Unknown mode")
 

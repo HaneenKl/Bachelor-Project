@@ -69,40 +69,46 @@ def parse_equations(text):
 
 
 #############--- user input as arden equations ---##############
-def arden_to_pyformlang_min_dfa(equations):
+def arden_to_nfa(equations):
     eq_dict = parse_equations(equations)
 
     start_state = list(eq_dict.keys())[0]
     accepting_states = set()
-    transitions = {}
+    transitions = []
+
+    single_letter_terms = {}
 
     # build transitions and accepting states
     for var, terms in eq_dict.items():
-        # find all single-letter terminal terms in this var
-        terminal_symbols = [t for t in terms if len(t) == 1]
-
+        single_letter_terms[var] = []
         for term in terms:
             if term in ("ε", "epsilon"):
+                # if var can derive ε, it is an accepting state
                 accepting_states.add(var)
                 continue
+            elif len(term) == 1:
+                single_letter_terms[var].append(term)
             elif len(term) >= 2:
                 symbol, dest = term[0:len(term) - 1], term[-1]
-                transitions[(var, symbol)] = dest
-                # if symbol appears as a terminal term, dest must be accepting
-                if symbol in terminal_symbols:
-                    accepting_states.add(dest)
-
-    min_dfa = automaton_to_pyformlang_min_dfa(start_state, accepting_states, transitions)
-
-    return min_dfa
+                transitions.append((var, symbol, dest))
 
 
-def automaton_to_pyformlang_min_dfa(start_sate, accepting_states, transitions):
+    for var, symbols in single_letter_terms.items():
+        for sym in symbols:
+            accepting_state = f"{var}_{sym}_acc"
+            transitions.append((var, sym, accepting_state))
+            accepting_states.add(accepting_state)
+
+    return start_state, accepting_states, transitions
+
+
+def arden_to_min_dfa(equations):
+    start_state, accepting_states, transitions = arden_to_nfa(equations)
     nfa = NondeterministicFiniteAutomaton()
-    for (src, sym), dst in transitions.items():
+    for src, sym, dst in transitions:
         nfa.add_transition(src, sym, dst)
 
-    nfa.add_start_state(start_sate)
+    nfa.add_start_state(start_state)
     for q in accepting_states:
         nfa.add_final_state(q)
 

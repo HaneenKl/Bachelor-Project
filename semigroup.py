@@ -214,7 +214,7 @@ def compute_green_classes_monoid(min_dfa):
 
 
 ############--- Egg-box diagram ---##############
-def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable):
+def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only):
     fp_elems = list(reps.keys())
     n = len(fp_elems)
 
@@ -249,15 +249,21 @@ def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable):
         # H-class cells: (l_row, r_col) -> list of words
         cells = defaultdict(list)
         for i in nodes:
+            elem = fp_elems[i]
+            is_stable = stable is not None and elem in stable
+
+            # For stable_only mode, skip non-stable elements entirely
+            if stable_only and not is_stable:
+                continue
+
             r = r_index[node_to_r[i]]
             l = l_index[node_to_l[i]]
-            w = word(fp_elems[i])
-            is_stable = stable is not None and fp_elems[i] in stable
-            is_idempotent = idempotents is not None and fp_elems[i] in idempotents
+            w = word(elem)
+            is_idempotent = idempotents is not None and elem in idempotents
             if w == "":
                 display_word = "ε"
                 ###change later maybe: to show "aa=ε" for example
-            elif fp_elems[i] == identity:
+            elif elem == identity:
                 display_word = "ε"
             else:
                 display_word = w
@@ -267,6 +273,10 @@ def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable):
         # sort words within each H-class
         for key in cells:
             cells[key].sort(key=lambda triple: (triple[0] != "ε", len(triple[0]), triple[0]))
+
+        # If stable_only is True and this D-class has no stable elements, skip it
+        if stable_only and not cells:
+            continue
 
         eggboxes.append({
             "n_rows": len(r_ids),
@@ -280,41 +290,21 @@ def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable):
 def visualize_syntactic_semigroup(min_dfa):
     alphabet, fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
     stable = compute_stable_subsemigroup(reps, alphabet)
-    eggboxes = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable)
+    eggboxes = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=False)
     return plot_eggbox_svg(eggboxes)
-
-
-def _restrict_to_stable(alphabet, reps, node_to_r, node_to_l, node_to_d):
-    stable = compute_stable_subsemigroup(reps, alphabet)
-
-    fp_elems = list(reps.keys())
-
-    # keep only fp-indices whose element is stable, preserving original order
-    kept = [i for i, e in enumerate(fp_elems) if e in stable]
-
-    # new compact indices
-    old_to_new = {old: new for new, old in enumerate(kept)}
-
-    reps_stable = {fp_elems[i]: reps[fp_elems[i]] for i in kept}
-    node_to_r_s = {old_to_new[i]: node_to_r[i] for i in kept}
-    node_to_l_s = {old_to_new[i]: node_to_l[i] for i in kept}
-    node_to_d_s = {old_to_new[i]: node_to_d[i] for i in kept}
-
-    return reps_stable, node_to_r_s, node_to_l_s, node_to_d_s, stable
 
 
 def visualize_syntactic_monoid(min_dfa):
     alphabet, fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_monoid(min_dfa)
     stable = compute_stable_subsemigroup(reps, alphabet)
-    eggboxes = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable)
+    eggboxes = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=False)
     return plot_eggbox_svg(eggboxes)
 
 
 def visualize_syntactic_stable_semigroup(min_dfa):
     alphabet, fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
-    reps_s, node_to_r_s, node_to_l_s, node_to_d_s, stable = _restrict_to_stable(
-        alphabet, reps, node_to_r, node_to_l, node_to_d)
-    eggboxes = build_eggbox_svg(reps_s, node_to_r_s, node_to_l_s, node_to_d_s, stable)
+    stable = compute_stable_subsemigroup(reps, alphabet)
+    eggboxes = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=True)
     return plot_eggbox_svg(eggboxes)
 
 
@@ -768,8 +758,9 @@ def add_spacing_to_equation(s):
 
 ######--- stable semigroup ---####
 def compute_stable_subsemigroup(reps, alphabet):
-    word_to_trans = {w: t for t, w in reps.items()}
-    generators = {word_to_trans[a] for a in alphabet}
+
+    generators = {t for t, w in reps.items() if len(w) == 1}
+    print("generators", generators)
 
     current = set(generators)
     s = 1
