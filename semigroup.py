@@ -2,6 +2,7 @@ from libsemigroups_pybind11.transf import Transf
 from libsemigroups_pybind11 import FroidurePin
 from collections import defaultdict
 from graphviz import Digraph
+from collections import deque
 import re
 import itertools
 
@@ -186,11 +187,11 @@ def compute_green_classes_semigroup(min_dfa):
 
     node_to_d = {node: find(node_to_r[node]) for node in range(n)}
 
-    return _alphabet, fp, reps, node_to_r, node_to_l, node_to_d
+    return _alphabet, fp, reps, node_to_r, node_to_l, node_to_d, lcg, rcg
 
 
 def compute_green_classes_monoid(min_dfa):
-    _alphabet, _fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
+    _alphabet, _fp, reps, node_to_r, node_to_l, node_to_d, _lcg, _rcg = compute_green_classes_semigroup(min_dfa)
 
     fp_elems = list(reps.keys())
     n_states = len(fp_elems[0])
@@ -210,11 +211,82 @@ def compute_green_classes_monoid(min_dfa):
         node_to_l[n] = new_id
         node_to_d[n] = new_id
 
-    return _alphabet, _fp, reps, node_to_r, node_to_l, node_to_d
+    return _alphabet, _fp, reps, node_to_r, node_to_l, node_to_d, _lcg, _rcg
 
 
 ############--- Egg-box diagram ---##############
-def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only):
+# build adjacency of the union of right and left Cayley graphs
+def build_two_sided_adj(lcg , rcg):
+    adj = defaultdict(set)
+    for s in rcg.nodes():
+        for _label, target in rcg.labels_and_targets(s):
+            if target is not None:
+                adj[s].add(target)
+        for _label, target in lcg.labels_and_targets(s):
+            if target is not None:
+                adj[s].add(target)
+    return adj
+
+def compute_j_order_covers_via_graph(lcg, rcg, node_to_d):
+    adj = build_two_sided_adj(lcg, rcg)
+
+    # build adjacency on D-classes
+    d_adj = defaultdict(set)
+    all_d_ids = set(node_to_d.values())
+    for d in all_d_ids:
+        d_adj.setdefault(d, set())   # ensure isolated D-classes appear
+
+    for u, neighbors in adj.items():
+        du = node_to_d[u]
+        for v in neighbors:
+            dv = node_to_d[v]
+            if du != dv:
+                d_adj[du].add(dv)
+
+    covers = transitive_reduction(d_adj)
+
+    return covers
+
+def _topological_sort_from_covers(d_ids, covers):
+    above_count = {d: 0 for d in d_ids}
+    for (i, j) in covers:
+        above_count[j] += 1
+
+    children = defaultdict(list)
+    for (i, j) in covers:
+        children[i].append(j)
+
+    queue = deque(d for d in d_ids if above_count[d] == 0)
+    d_order = []
+    while queue:
+        d = queue.popleft()
+        d_order.append(d)
+        for j in children[d]:
+            above_count[j] -= 1
+            if above_count[j] == 0:
+                queue.append(j)
+
+    for d in d_ids:
+        if d not in d_order:
+            d_order.append(d)
+    return d_order
+
+
+def transitive_reduction(d_adj):
+    # find all reachable pairs first
+    reachable = {d: set() for d in d_adj}
+    # ... standard DFS from each node ...
+
+    # an edge (u, v) is a cover iff no w with u -> w -> ... -> v exists
+    # other than direct
+    covers = []
+    for u in d_adj:
+        for v in d_adj[u]:
+            if not any(v in reachable[w] for w in d_adj[u] if w != v):
+                covers.append((u, v))
+    return covers
+
+def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only, lcg, rcg):
     fp_elems = list(reps.keys())
     n = len(fp_elems)
 
@@ -231,14 +303,15 @@ def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only)
     for i in range(n):
         d_groups[node_to_d[i]].append(i)
 
-    # sort D-classes by rank (size of image) descending
-    def rank(j):
-        return len(set(fp_elems[j]))
+    # compute J-order covers for layout
+    covers = compute_j_order_covers_via_graph(lcg, rcg, node_to_d)
+    d_order = _topological_sort_from_covers(list(d_groups.keys()), covers)
 
-    d_groups_sorted = sorted(d_groups.values(), key=lambda d_nodes: -max(rank(j) for j in d_nodes))
+    d_id_to_box_idx = {d_id: idx for idx, d_id in enumerate(d_order)}
 
     eggboxes = []
-    for nodes in d_groups_sorted:
+    for d_id in d_order:
+        nodes = d_groups[d_id]
         # collect R and L class ids within this D-class
         r_ids = sorted({node_to_r[i] for i in nodes})
         l_ids = sorted({node_to_l[i] for i in nodes})
@@ -283,35 +356,38 @@ def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only)
             "n_cols": len(l_ids),
             "cells": cells,
         })
+    cover_edges = [(d_id_to_box_idx[hi], d_id_to_box_idx[lo]) for (hi, lo) in covers]
 
-    return eggboxes
+    return eggboxes, cover_edges
 
 
 def visualize_syntactic_semigroup(min_dfa):
-    alphabet, fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
-    stable = compute_stable_subsemigroup(reps, alphabet)
-    eggboxes = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=False)
-    return plot_eggbox_svg(eggboxes)
+    alphabet, fp, reps, node_to_r, node_to_l, node_to_d, lcg, rcg = compute_green_classes_semigroup(min_dfa)
+    stable = compute_stable_subsemigroup(reps)
+    eggboxes, cover_edges = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=False, lcg=lcg, rcg=rcg)
+    return plot_eggbox_svg(eggboxes, cover_edges)
 
 
 def visualize_syntactic_monoid(min_dfa):
-    alphabet, fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_monoid(min_dfa)
-    stable = compute_stable_subsemigroup(reps, alphabet)
-    eggboxes = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=False)
-    return plot_eggbox_svg(eggboxes)
+    alphabet, fp, reps, node_to_r, node_to_l, node_to_d, lcg, rcg = compute_green_classes_monoid(min_dfa)
+    stable = compute_stable_subsemigroup(reps)
+    eggboxes, cover_edges = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=False, lcg=lcg, rcg=rcg)
+    return plot_eggbox_svg(eggboxes, cover_edges)
 
 
 def visualize_syntactic_stable_semigroup(min_dfa):
-    alphabet, fp, reps, node_to_r, node_to_l, node_to_d = compute_green_classes_semigroup(min_dfa)
-    stable = compute_stable_subsemigroup(reps, alphabet)
-    eggboxes = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=True)
-    return plot_eggbox_svg(eggboxes)
+    alphabet, fp, reps, node_to_r, node_to_l, node_to_d, lcg, rcg = compute_green_classes_semigroup(min_dfa)
+    stable = compute_stable_subsemigroup(reps)
+    eggboxes, cover_edges = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=True, lcg=lcg, rcg=rcg)
+    return plot_eggbox_svg(eggboxes, cover_edges)
 
 
-def plot_eggbox_svg(eggboxes):
+def plot_eggbox_svg(eggboxes, cover_edges=None):
     dot = Digraph(format="svg")
     dot.attr(rankdir="TB")
     dot.attr("node", shape="plaintext")
+
+    dot.attr(newrank="true")
 
     for i, box in enumerate(eggboxes):
         n_rows = box["n_rows"]
@@ -337,8 +413,12 @@ def plot_eggbox_svg(eggboxes):
 
         table.append("</table>")
         dot.node(f"D{i}", label="<" + "".join(table) + ">")
-    for i in range(len(eggboxes) - 1):
-        dot.edge(f"D{i}", f"D{i + 1}", style="invis")
+    # connect D-classes only along J-order covering relations.
+    # incomparable D-classes get no edge between them and so are placed
+    # side by side rather than stacked vertically.
+    if cover_edges:
+        for hi, lo in cover_edges:
+            dot.edge(f"D{hi}", f"D{lo}", style="invis")
 
     return dot.pipe(format="svg").decode("utf-8")
 
@@ -424,7 +504,7 @@ def multiplication_table_to_latex_monoid(min_dfa):
 
 def multiplication_table_to_latex_stable_semigroup(min_dfa):
     reps, alphabet = compute_syntactic_semigroup(min_dfa)
-    stable = compute_stable_subsemigroup(reps, alphabet)
+    stable = compute_stable_subsemigroup(reps)
 
     reps_stable = {e: w for e, w in reps.items() if e in stable}
 
@@ -698,10 +778,9 @@ def check_equations_batch_monoid(min_dfa, equations_text):
 
 def check_equations_batch_stable_semigroup(min_dfa, equations_text):
     reps, alphabet = compute_syntactic_semigroup(min_dfa)
-    stable = compute_stable_subsemigroup(reps, alphabet)
+    stable = compute_stable_subsemigroup(reps)
     reps_stable = {e: w for e, w in reps.items() if e in stable}
     return check_equations_with_reps(reps_stable, equations_text)
-
 
 
 def add_spacing_to_equation(s):
@@ -719,11 +798,12 @@ def add_spacing_to_equation(s):
         c = s[i]
 
         # '^(w-1)' — copy verbatim
-        if c == '^' and i + 1 < n and s[i+1] == '(':
+        if c == '^' and i + 1 < n and s[i + 1] == '(':
             j = s.find(')', i)
             if j == -1:
-                out.append(s[i:]); break
-            chunk = s[i:j+1]
+                out.append(s[i:])
+                break
+            chunk = s[i:j + 1]
             i = j + 1
             emit_and_maybe_space(chunk, s[i] if i < n else '')
             continue
@@ -755,10 +835,8 @@ def add_spacing_to_equation(s):
     return result.strip()
 
 
-
 ######--- stable semigroup ---####
-def compute_stable_subsemigroup(reps, alphabet):
-
+def compute_stable_subsemigroup(reps):
     generators = {t for t, w in reps.items() if len(w) == 1}
     print("generators", generators)
 
@@ -770,7 +848,7 @@ def compute_stable_subsemigroup(reps, alphabet):
             return current
         current = {mul(a, b) for a in current for b in generators}
 
-#       left  = {mul(g, p) for g in generators for p in current}
-#       right = {mul(p, g) for p in current for g in generators}
-#       current = left | right
+        #       left  = {mul(g, p) for g in generators for p in current}
+        #       right = {mul(p, g) for p in current for g in generators}
+        #       current = left | right
         s += 1
