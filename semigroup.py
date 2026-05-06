@@ -197,6 +197,8 @@ def compute_green_classes_monoid(min_dfa):
     n_states = len(fp_elems[0])
     identity = tuple(range(n_states))
 
+    injected_identity_d = None # track D-class of identity if it already exists
+
     # only add identity if the semigroup doesn't already contain it
     if identity not in set(fp_elems):
         n = len(fp_elems)
@@ -211,7 +213,9 @@ def compute_green_classes_monoid(min_dfa):
         node_to_l[n] = new_id
         node_to_d[n] = new_id
 
-    return _alphabet, _fp, reps, node_to_r, node_to_l, node_to_d, _lcg, _rcg
+        injected_identity_d = new_id
+
+    return _alphabet, _fp, reps, node_to_r, node_to_l, node_to_d, _lcg, _rcg, injected_identity_d
 
 
 ############--- Egg-box diagram ---##############
@@ -286,7 +290,7 @@ def transitive_reduction(d_adj):
                 covers.append((u, v))
     return covers
 
-def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only, lcg, rcg):
+def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only, lcg, rcg, top_d_id=None):
     fp_elems = list(reps.keys())
     n = len(fp_elems)
 
@@ -305,6 +309,13 @@ def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only,
 
     # compute J-order covers for layout
     covers = compute_j_order_covers_via_graph(lcg, rcg, node_to_d)
+
+    if top_d_id is not None:
+        covered = {lo for (_,lo) in covers}
+        current_roots = [d for d in d_groups if d!= top_d_id and d not in covered]
+        for root in current_roots:
+            covers.append((top_d_id, root))
+
     d_order = _topological_sort_from_covers(list(d_groups.keys()), covers)
 
     d_id_to_box_idx = {d_id: idx for idx, d_id in enumerate(d_order)}
@@ -369,9 +380,9 @@ def visualize_syntactic_semigroup(min_dfa):
 
 
 def visualize_syntactic_monoid(min_dfa):
-    alphabet, fp, reps, node_to_r, node_to_l, node_to_d, lcg, rcg = compute_green_classes_monoid(min_dfa)
+    alphabet, fp, reps, node_to_r, node_to_l, node_to_d, lcg, rcg, injected_identity_d = compute_green_classes_monoid(min_dfa)
     stable = compute_stable_subsemigroup(reps)
-    eggboxes, cover_edges = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=False, lcg=lcg, rcg=rcg)
+    eggboxes, cover_edges = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=False, lcg=lcg, rcg=rcg, top_d_id=injected_identity_d)
     return plot_eggbox_svg(eggboxes, cover_edges)
 
 
