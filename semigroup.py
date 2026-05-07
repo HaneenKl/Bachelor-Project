@@ -166,15 +166,6 @@ def compute_green_classes_semigroup(min_dfa):
     # D-classes: union-find over R-classes that share an L-class
     parent = list(range(len(r_sccs)))
 
-    def find(x):
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
-
-    def union(x, y):
-        parent[find(x)] = find(y)
-
     # group R-class ids by L-class
     l_to_r_classes = defaultdict(set)
     for node in range(n):
@@ -183,11 +174,118 @@ def compute_green_classes_semigroup(min_dfa):
     for r_ids in l_to_r_classes.values():
         r_list = list(r_ids)
         for i in range(1, len(r_list)):
-            union(r_list[0], r_list[i])
+            union(r_list[0], r_list[i], parent)
 
-    node_to_d = {node: find(node_to_r[node]) for node in range(n)}
+    node_to_d = {node: find(node_to_r[node], parent) for node in range(n)}
 
     return _alphabet, fp, reps, node_to_r, node_to_l, node_to_d, lcg, rcg
+
+
+
+class _SimpleCayleyGraph:
+    """
+    Minimal stand-in for libsemigroups' Cayley graph objects, exposing just the
+    interface used downstream: nodes() and labels_and_targets(node).
+    Used to compute Green's relations on subsemigroups (e.g. the stable one)
+    where we cannot reuse the full FroidurePin's Cayley graphs directly.
+    """
+    def __init__(self, n_nodes, adj_with_labels):
+        # adj_with_labels: dict[node] -> list[(label, target)]
+        self._n = n_nodes
+        self._adj = adj_with_labels
+
+    def nodes(self):
+        return range(self._n)
+
+    def labels_and_targets(self, node):
+        return self._adj.get(node, [])
+
+
+def find(x, parent):
+    while parent[x] != x:
+        parent[x] = parent[parent[x]]
+        x = parent[x]
+    return x
+
+def union(x, y, parent):
+    parent[find(x, parent)] = find(y, parent)
+
+
+def compute_green_classes_stable_semigroup(min_dfa):
+    reps_full, alphabet = compute_syntactic_semigroup(min_dfa)
+    stable = compute_stable_subsemigroup(reps_full)
+
+    # restrict reps to stable elements, preserving original words
+    reps = {e: w for e, w in reps_full.items() if e in stable}
+
+    elements = list(reps.keys())
+    index_of = {e: i for i, e in enumerate(elements)}
+    n = len(elements)
+
+    # letter transformations (as tuples) from the alphabet
+    letter_elems = {}
+    for e, w in reps_full.items():
+        if len(w) == 1:
+            letter_elems[w] = e
+
+    # right Cayley graph on stable elements:
+    # x --a--> x * a  (only if x*a is stable)
+    right_adj = {i: [] for i in range(n)}
+    # left Cayley graph on stable elements:
+    # x --a--> a * x
+    left_adj = {i: [] for i in range(n)}
+
+    for i, x in enumerate(elements):
+        for a_idx, a in enumerate(alphabet):
+            a_str = str(a)
+            if a_str not in letter_elems:
+                continue
+            a_elem = letter_elems[a_str]
+
+            xa = mul(x, a_elem)
+            if xa in index_of:
+                right_adj[i].append((a_idx, index_of[xa]))
+
+            ax = mul(a_elem, x)
+            if ax in index_of:
+                left_adj[i].append((a_idx, index_of[ax]))
+
+    rcg = _SimpleCayleyGraph(n, right_adj)
+    lcg = _SimpleCayleyGraph(n, left_adj)
+
+    # SCCs for R-classes (right Cayley) and L-classes (left Cayley)
+    r_adj_sets = build_adj(rcg)
+    r_sccs = kosaraju_sccs(n, r_adj_sets)
+
+    l_adj_sets = build_adj(lcg)
+    l_sccs = kosaraju_sccs(n, l_adj_sets)
+
+    node_to_r = {}
+    for r_id, scc in enumerate(r_sccs):
+        for node in scc:
+            node_to_r[node] = r_id
+
+    node_to_l = {}
+    for l_id, scc in enumerate(l_sccs):
+        for node in scc:
+            node_to_l[node] = l_id
+
+    # D-classes: union-find over R-classes that share an L-class
+    parent = list(range(len(r_sccs)))
+
+    l_to_r_classes = defaultdict(set)
+    for node in range(n):
+        l_to_r_classes[node_to_l[node]].add(node_to_r[node])
+
+    for r_ids in l_to_r_classes.values():
+        r_list = list(r_ids)
+        for i in range(1, len(r_list)):
+            union(r_list[0], r_list[i], parent)
+
+    node_to_d = {node: find(node_to_r[node], parent) for node in range(n)}
+
+    return alphabet, reps, node_to_r, node_to_l, node_to_d, lcg, rcg
+
 
 
 def compute_green_classes_monoid(min_dfa):
@@ -387,9 +485,9 @@ def visualize_syntactic_monoid(min_dfa):
 
 
 def visualize_syntactic_stable_semigroup(min_dfa):
-    alphabet, fp, reps, node_to_r, node_to_l, node_to_d, lcg, rcg = compute_green_classes_semigroup(min_dfa)
-    stable = compute_stable_subsemigroup(reps)
-    eggboxes, cover_edges = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=True, lcg=lcg, rcg=rcg)
+    alphabet, reps, node_to_r, node_to_l, node_to_d, lcg, rcg = compute_green_classes_stable_semigroup(min_dfa)
+
+    eggboxes, cover_edges = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable= None, stable_only=False, lcg=lcg, rcg=rcg)
     return plot_eggbox_svg(eggboxes, cover_edges)
 
 
@@ -799,8 +897,8 @@ def add_spacing_to_equation(s):
     i = 0
     n = len(s)
 
-    def emit_and_maybe_space(chunk, next_char):
-        out.append(chunk)
+    def emit_and_maybe_space(tmp, next_char):
+        out.append(tmp)
         # space if next char starts a new symbol (letter or '(')
         if next_char and (next_char.isalpha() or next_char == '('):
             out.append(' ')

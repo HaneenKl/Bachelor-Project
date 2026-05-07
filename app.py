@@ -171,8 +171,18 @@ def left_cayley():
         persist_input_from_request()
         update_history()
 
+        structure = request.form.get("structure", "semigroup")
+        session["structure"] = structure
+
         min_dfa = build_min_dfa_from_session()
-        left_svg = cg.left_cayley_graph_svg(min_dfa)
+
+        if structure == "monoid":
+            left_svg = cg.left_cayley_graph_svg_monoid(min_dfa)
+        elif structure == "semigroup":
+            left_svg = cg.left_cayley_graph_svg_semigroup(min_dfa)
+        else:
+            left_svg = cg.left_cayley_graph_svg_stable(min_dfa)
+
         session.pop("hide_left_cayley", None)
         session["left_svg"] = left_svg
         session["error"] = None
@@ -187,8 +197,18 @@ def right_cayley():
         persist_input_from_request()
         update_history()
 
+        structure = request.form.get("structure", "semigroup")
+        session["structure"] = structure
+
         min_dfa = build_min_dfa_from_session()
-        right_svg = cg.right_cayley_graph_svg(min_dfa)
+
+        if structure == "monoid":
+            right_svg = cg.left_cayley_graph_svg_monoid(min_dfa)
+        elif structure == "semigroup":
+            right_svg = cg.left_cayley_graph_svg_semigroup(min_dfa)
+        else:
+            right_svg = cg.left_cayley_graph_svg_stable(min_dfa)
+
         session.pop("hide_right_cayley", None)
         session["right_svg"] = right_svg
         session["error"] = None
