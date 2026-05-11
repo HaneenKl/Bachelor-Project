@@ -105,24 +105,30 @@ def left_cayley_graph_svg_monoid(min_dfa):
 
 
 ############--- stable semigroup ---##############
-def restrict_to_stable_elements(node_ids, node_labels, edges, elements, reps):
-    stable = compute_stable_subsemigroup(reps)
-    stable_ids = {idx for idx, elem in enumerate(elements) if elem in stable}
+def build_stable_cayley(min_dfa, side):
+    reps_stable, elems, _index_of, gens, right_adj, left_adj = build_stable_cayley_adj(min_dfa)
 
-    new_node_ids = [i for i in node_ids if i in stable_ids]
-    new_node_labels = {i: node_labels[i] for i in new_node_ids}
-    new_edges = [(src, dst, label) for src, dst, label in edges if src in stable_ids and dst in stable_ids]
-    return new_node_ids, new_node_labels, new_edges
+    node_ids = list(range(len(elems)))
+    node_labels = {i: ("ε" if reps_stable[e] == "" else reps_stable[e]) for i, e in enumerate(elems)}
+
+    adj = right_adj if side == "right" else left_adj
+    edges = []
+
+    for src, outgoing in adj.items():
+        for g_idx, dst in outgoing:
+            label = reps_stable[gens[g_idx]]
+            if label == "":
+                label = "ε"
+            edges.append((src, dst, str(label)))
+    return node_ids, node_labels, edges
+
 
 
 def right_cayley_graph_svg_stable(min_dfa):
-    node_ids, node_labels, edges, elements, alphabet, reps = extract_semigroup_cayley(min_dfa, side="right")
-    node_ids, node_labels, edges = restrict_to_stable_elements(node_ids, node_labels, edges, elements, reps)
+    node_ids, node_labels, edges = build_stable_cayley(min_dfa, side="right")
     return cayley_graph_svg(node_ids, node_labels, edges)
 
 
-
 def left_cayley_graph_svg_stable(min_dfa):
-    node_ids, node_labels, edges, elements, alphabet, reps = extract_semigroup_cayley(min_dfa, side="left")
-    node_ids, node_labels, edges = restrict_to_stable_elements(node_ids, node_labels, edges, elements, reps)
+    node_ids, node_labels, edges = build_stable_cayley(min_dfa, side="left")
     return cayley_graph_svg(node_ids, node_labels, edges)

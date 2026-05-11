@@ -181,7 +181,6 @@ def compute_green_classes_semigroup(min_dfa):
     return _alphabet, fp, reps, node_to_r, node_to_l, node_to_d, lcg, rcg
 
 
-
 class _SimpleCayleyGraph:
     """
     Minimal stand-in for libsemigroups' Cayley graph objects, exposing just the
@@ -189,6 +188,7 @@ class _SimpleCayleyGraph:
     Used to compute Green's relations on subsemigroups (e.g. the stable one)
     where we cannot reuse the full FroidurePin's Cayley graphs directly.
     """
+
     def __init__(self, n_nodes, adj_with_labels):
         # adj_with_labels: dict[node] -> list[(label, target)]
         self._n = n_nodes
@@ -207,48 +207,37 @@ def find(x, parent):
         x = parent[x]
     return x
 
+
 def union(x, y, parent):
     parent[find(x, parent)] = find(y, parent)
 
-
-def compute_green_classes_stable_semigroup(min_dfa):
-    reps_full, alphabet = compute_syntactic_semigroup(min_dfa)
-    stable = compute_stable_subsemigroup(reps_full)
-
-    # restrict reps to stable elements, preserving original words
-    reps = {e: w for e, w in reps_full.items() if e in stable}
-
-    elements = list(reps.keys())
+def build_stable_cayley_adj(min_dfa):
+    reps, _alphabet = compute_syntactic_semigroup(min_dfa)
+    stable = compute_stable_subsemigroup(reps)
+    reps_stable =  {e: w for e, w in reps.items() if e in stable}
+    gens = minimal_gens_of_stable(reps_stable, stable)
+    elements = list(reps_stable.keys())
     index_of = {e: i for i, e in enumerate(elements)}
     n = len(elements)
 
-    # letter transformations (as tuples) from the alphabet
-    letter_elems = {}
-    for e, w in reps_full.items():
-        if len(w) == 1:
-            letter_elems[w] = e
-
-    # right Cayley graph on stable elements:
-    # x --a--> x * a  (only if x*a is stable)
     right_adj = {i: [] for i in range(n)}
-    # left Cayley graph on stable elements:
-    # x --a--> a * x
     left_adj = {i: [] for i in range(n)}
-
     for i, x in enumerate(elements):
-        for a_idx, a in enumerate(alphabet):
-            a_str = str(a)
-            if a_str not in letter_elems:
-                continue
-            a_elem = letter_elems[a_str]
+        for g_idx, g in enumerate(gens):
+            xg = mul(x, g)
+            if xg in index_of:
+                right_adj[i].append((g_idx, index_of[xg]))
+            gx = mul(g, x)
+            if gx in index_of:
+                left_adj[i].append((g_idx, index_of[gx]))
+    return reps_stable, elements, index_of, gens, right_adj, left_adj
 
-            xa = mul(x, a_elem)
-            if xa in index_of:
-                right_adj[i].append((a_idx, index_of[xa]))
 
-            ax = mul(a_elem, x)
-            if ax in index_of:
-                left_adj[i].append((a_idx, index_of[ax]))
+def compute_green_classes_stable_semigroup(min_dfa):
+    reps_stable, elements, index_of, gens, right_adj, left_adj = build_stable_cayley_adj(min_dfa)
+
+    n = len(elements)
+    reps = reps_stable
 
     rcg = _SimpleCayleyGraph(n, right_adj)
     lcg = _SimpleCayleyGraph(n, left_adj)
@@ -284,8 +273,7 @@ def compute_green_classes_stable_semigroup(min_dfa):
 
     node_to_d = {node: find(node_to_r[node], parent) for node in range(n)}
 
-    return alphabet, reps, node_to_r, node_to_l, node_to_d, lcg, rcg
-
+    return reps, node_to_r, node_to_l, node_to_d, lcg, rcg
 
 
 def compute_green_classes_monoid(min_dfa):
@@ -295,7 +283,7 @@ def compute_green_classes_monoid(min_dfa):
     n_states = len(fp_elems[0])
     identity = tuple(range(n_states))
 
-    injected_identity_d = None # track D-class of identity if it already exists
+    injected_identity_d = None  # track D-class of identity if it already exists
 
     # only add identity if the semigroup doesn't already contain it
     if identity not in set(fp_elems):
@@ -318,7 +306,7 @@ def compute_green_classes_monoid(min_dfa):
 
 ############--- Egg-box diagram ---##############
 # build adjacency of the union of right and left Cayley graphs
-def build_two_sided_adj(lcg , rcg):
+def build_two_sided_adj(lcg, rcg):
     adj = defaultdict(set)
     for s in rcg.nodes():
         for _label, target in rcg.labels_and_targets(s):
@@ -329,6 +317,7 @@ def build_two_sided_adj(lcg , rcg):
                 adj[s].add(target)
     return adj
 
+
 def compute_j_order_covers_via_graph(lcg, rcg, node_to_d):
     adj = build_two_sided_adj(lcg, rcg)
 
@@ -336,7 +325,7 @@ def compute_j_order_covers_via_graph(lcg, rcg, node_to_d):
     d_adj = defaultdict(set)
     all_d_ids = set(node_to_d.values())
     for d in all_d_ids:
-        d_adj.setdefault(d, set())   # ensure isolated D-classes appear
+        d_adj.setdefault(d, set())  # ensure isolated D-classes appear
 
     for u, neighbors in adj.items():
         du = node_to_d[u]
@@ -348,6 +337,7 @@ def compute_j_order_covers_via_graph(lcg, rcg, node_to_d):
     covers = transitive_reduction(d_adj)
 
     return covers
+
 
 def _topological_sort_from_covers(d_ids, covers):
     above_count = {d: 0 for d in d_ids}
@@ -375,18 +365,29 @@ def _topological_sort_from_covers(d_ids, covers):
 
 
 def transitive_reduction(d_adj):
-    # find all reachable pairs first
-    reachable = {d: set() for d in d_adj}
-    # ... standard DFS from each node ...
 
-    # an edge (u, v) is a cover iff no w with u -> w -> ... -> v exists
-    # other than direct
+    reachable = {d: set() for d in d_adj}
+
+    for start in d_adj:
+        visited = set()
+        stack = [start]
+        while stack:
+            node = stack.pop()
+            if node in visited:
+                continue
+            visited.add(node)
+            for next_node in d_adj.get(node, ()):
+                if next_node not in visited:
+                    stack.append(next_node)
+        reachable[start] = visited
+
     covers = []
     for u in d_adj:
         for v in d_adj[u]:
             if not any(v in reachable[w] for w in d_adj[u] if w != v):
                 covers.append((u, v))
     return covers
+
 
 def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only, lcg, rcg, top_d_id=None):
     fp_elems = list(reps.keys())
@@ -409,8 +410,8 @@ def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only,
     covers = compute_j_order_covers_via_graph(lcg, rcg, node_to_d)
 
     if top_d_id is not None:
-        covered = {lo for (_,lo) in covers}
-        current_roots = [d for d in d_groups if d!= top_d_id and d not in covered]
+        covered = {lo for (_, lo) in covers}
+        current_roots = [d for d in d_groups if d != top_d_id and d not in covered]
         for root in current_roots:
             covers.append((top_d_id, root))
 
@@ -473,21 +474,25 @@ def build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only,
 def visualize_syntactic_semigroup(min_dfa):
     alphabet, fp, reps, node_to_r, node_to_l, node_to_d, lcg, rcg = compute_green_classes_semigroup(min_dfa)
     stable = compute_stable_subsemigroup(reps)
-    eggboxes, cover_edges = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=False, lcg=lcg, rcg=rcg)
+    eggboxes, cover_edges = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=False, lcg=lcg,
+                                             rcg=rcg)
     return plot_eggbox_svg(eggboxes, cover_edges)
 
 
 def visualize_syntactic_monoid(min_dfa):
-    alphabet, fp, reps, node_to_r, node_to_l, node_to_d, lcg, rcg, injected_identity_d = compute_green_classes_monoid(min_dfa)
+    alphabet, fp, reps, node_to_r, node_to_l, node_to_d, lcg, rcg, injected_identity_d = compute_green_classes_monoid(
+        min_dfa)
     stable = compute_stable_subsemigroup(reps)
-    eggboxes, cover_edges = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=False, lcg=lcg, rcg=rcg, top_d_id=injected_identity_d)
+    eggboxes, cover_edges = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable, stable_only=False, lcg=lcg,
+                                             rcg=rcg, top_d_id=injected_identity_d)
     return plot_eggbox_svg(eggboxes, cover_edges)
 
 
 def visualize_syntactic_stable_semigroup(min_dfa):
-    alphabet, reps, node_to_r, node_to_l, node_to_d, lcg, rcg = compute_green_classes_stable_semigroup(min_dfa)
+    reps, node_to_r, node_to_l, node_to_d, lcg, rcg = compute_green_classes_stable_semigroup(min_dfa)
 
-    eggboxes, cover_edges = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable= None, stable_only=False, lcg=lcg, rcg=rcg)
+    eggboxes, cover_edges = build_eggbox_svg(reps, node_to_r, node_to_l, node_to_d, stable=None, stable_only=False,
+                                             lcg=lcg, rcg=rcg)
     return plot_eggbox_svg(eggboxes, cover_edges)
 
 
@@ -528,6 +533,7 @@ def plot_eggbox_svg(eggboxes, cover_edges=None):
     if cover_edges:
         for hi, lo in cover_edges:
             dot.edge(f"D{hi}", f"D{lo}", style="invis")
+    
 
     return dot.pipe(format="svg").decode("utf-8")
 
@@ -945,6 +951,37 @@ def add_spacing_to_equation(s):
 
 
 ######--- stable semigroup ---####
+def minimal_gens_of_stable(reps, stable):
+    stable_set = set(stable)
+    decomposable = set()
+    for s in stable_set:
+        for t in stable_set:
+            st = mul(s, t)
+            if st in stable_set and st != s and st != t:
+                decomposable.add(st)
+    gens = set(decomposable - stable_set)
+
+    def closure(generators):
+        current = set(generators)
+        while True:
+            new = {mul(a, b) for a in current for b in current} | current
+            if new == current:
+                return current
+            current = new
+
+    closed = closure(gens)
+    for s in stable_set:
+        if s in closed:
+            continue
+        gens.add(s)
+        closed = closure(gens)
+        if closed == stable_set:
+            break
+
+    return sorted(gens, key=lambda e: (len(reps[e]), reps[e]))
+
+
+
 def compute_stable_subsemigroup(reps):
     generators = {t for t, w in reps.items() if len(w) == 1}
     print("generators", generators)
