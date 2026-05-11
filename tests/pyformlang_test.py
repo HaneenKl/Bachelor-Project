@@ -1,8 +1,5 @@
-from pyformlang.finite_automaton import NondeterministicFiniteAutomaton
 from pyformlang import regular_expression
-from pyformlang import cfg
 # way faster than automat-toolkit library
-from input_to_automata import Automaton
 
 
 

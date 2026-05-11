@@ -2,8 +2,10 @@ from flask import Flask, render_template, request, redirect, session, jsonify
 from flask_session import Session
 
 import input_to_automata as aut
-import semigroup as sg
 import cayley_graph as cg
+import eggbox as eg
+import equations as eq
+import mult_table as mt
 
 app = Flask(__name__)
 app.secret_key = "dev-secret"
@@ -152,11 +154,11 @@ def eggbox():
 
         min_dfa = build_min_dfa_from_session()
         if structure == "monoid":
-            svg = sg.visualize_syntactic_monoid(min_dfa)
+            svg = eg.visualize_syntactic_monoid(min_dfa)
         elif structure == "semigroup":
-            svg = sg.visualize_syntactic_semigroup(min_dfa)
+            svg = eg.visualize_syntactic_semigroup(min_dfa)
         else:
-            svg = sg.visualize_syntactic_stable_semigroup(min_dfa)
+            svg = eg.visualize_syntactic_stable_semigroup(min_dfa)
         session["eggbox_svg"] = svg
         session.pop("hide_eggbox", None)
         session["error"] = None
@@ -271,14 +273,14 @@ def equations():
         structure = session.get("structure", "semigroup")
         min_dfa = build_min_dfa_from_session()
 
-        equation_input = sg.add_spacing_to_equation(equation_input)
+        equation_input = eq.add_spacing_to_equation(equation_input)
 
         if structure == "monoid":
-            results = sg.check_equations_batch_monoid(min_dfa, equation_input)
+            results = eq.check_equations_batch_monoid(min_dfa, equation_input)
         elif structure == "semigroup":
-            results = sg.check_equations_batch_semigroup(min_dfa, equation_input)
+            results = eq.check_equations_batch_semigroup(min_dfa, equation_input)
         else:
-            results = sg.check_equations_batch_stable_semigroup(min_dfa, equation_input)
+            results = eq.check_equations_batch_stable_semigroup(min_dfa, equation_input)
 
         session["equation_result"] = format_results(results)
         session["error"] = None
@@ -299,11 +301,11 @@ def multiplication_table():
         min_dfa = build_min_dfa_from_session()
 
         if structure == "monoid":
-            latex = sg.multiplication_table_to_latex_monoid(min_dfa)
+            latex = mt.multiplication_table_to_latex_monoid(min_dfa)
         elif structure == "semigroup":
-            latex = sg.multiplication_table_to_latex_semigroup(min_dfa)
+            latex = mt.multiplication_table_to_latex_semigroup(min_dfa)
         else:
-            latex = sg.multiplication_table_to_latex_stable_semigroup(min_dfa)
+            latex = mt.multiplication_table_to_latex_stable_semigroup(min_dfa)
 
         return jsonify({"latex": latex})
 

@@ -186,11 +186,11 @@
                         </button>
                         <div class="dropdown-menu" style="background: var(--bs-success-bg-subtle);">
                             <button class="dropdown-item" type="submit" formaction="/eggbox"
-                                    onclick="document.getElementById('structureInput').value='stable'">
+                                    onclick="document.getElementById('structureInput').value='stable semigroup'">
                                 Egg-box Diagram
                             </button>
                             <button class="dropdown-item" type="submit" formaction="/equations/show"
-                                    onclick="document.getElementById('structureInput').value='stable'">
+                                    onclick="document.getElementById('structureInput').value='stable semigroup'">
                                 Check Equations
                             </button>
                             <button class="dropdown-item" type="button"
@@ -198,11 +198,11 @@
                                 Copy Multiplication Table
                             </button>
                             <button class="dropdown-item" type="submit" formaction="/left_cayley"
-                                    onclick="document.getElementById('structureInput').value='stable'">
+                                    onclick="document.getElementById('structureInput').value='stable semigroup'">
                                 left Cayley Graph
                             </button>
                             <button class="dropdown-item" type="submit" formaction="/right_cayley"
-                                    onclick="document.getElementById('structureInput').value='stable'">
+                                    onclick="document.getElementById('structureInput').value='stable semigroup'">
                                 right Cayley Graph
                             </button>
                         </div>
@@ -284,7 +284,8 @@
             <div class="card">
                 <div class="card-body" id="leftCayleyCard">
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <h4 class="card-title" style="text-align: center;">Left Cayley Graph</h4>
+                        <h4 class="card-title" style="text-align: center;">Left Cayley Graph
+                    ({{ structure | default('Semigroup') | title }})</h4>
                         <form method="POST" action="/hide/left_cayley">
                             <button type="submit" class="btn-close" aria-label="Close"></button>
                         </form>
@@ -299,7 +300,8 @@
             <div class="card">
                 <div class="card-body" id="rightCayleyCard">
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <h4 class="card-title" style="text-align: center;">Right Cayley Graph</h4>
+                        <h4 class="card-title" style="text-align: center;">Right Cayley Graph
+                    ({{ structure | default('Semigroup') | title }})</h4>
                         <form method="POST" action="/hide/right_cayley">
                             <button type="submit" class="btn-close" aria-label="Close"></button>
                         </form>
