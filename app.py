@@ -203,11 +203,11 @@ def right_cayley():
         min_dfa = build_min_dfa_from_session()
 
         if structure == "monoid":
-            right_svg = cg.left_cayley_graph_svg_monoid(min_dfa)
+            right_svg = cg.right_cayley_graph_svg_monoid(min_dfa)
         elif structure == "semigroup":
-            right_svg = cg.left_cayley_graph_svg_semigroup(min_dfa)
+            right_svg = cg.right_cayley_graph_svg_semigroup(min_dfa)
         else:
-            right_svg = cg.left_cayley_graph_svg_stable(min_dfa)
+            right_svg = cg.right_cayley_graph_svg_stable(min_dfa)
 
         session.pop("hide_right_cayley", None)
         session["right_svg"] = right_svg
