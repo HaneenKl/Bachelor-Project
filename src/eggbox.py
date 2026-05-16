@@ -81,6 +81,7 @@ def transitive_reduction(d_adj):
                 if next_node not in visited:
                     stack.append(next_node)
         reachable[start] = visited
+
     covers = []
     for u in d_adj:
         for v in d_adj[u]:
@@ -210,27 +211,7 @@ def plot_eggbox_svg(eggboxes, cover_edges=None):
     # side by side rather than stacked vertically.
     if cover_edges:
         for hi, lo in cover_edges:
-            dot.edge(f"D{hi}", f"D{lo}", style="invis")
-    n_boxes = len(eggboxes)
-    parents = defaultdict(list)
-    if cover_edges:
-        for hi, lo in cover_edges:
-            parents[lo].append(hi)
-
-    rank = {}
-
-    def depth_up(u):
-        if u in rank:
-            return rank[u]
-        ps = parents.get(u, [])
-        if not ps:
-            rank[u] = 0
-        else:
-            rank[u] = 1 + max(depth_up(p) for p in ps)
-        return rank[u]
-
-    for i in range(n_boxes):
-        depth_up(i)
+            dot.edge(f"D{hi}", f"D{lo}", arrowhead="none", color="gray50")
 
     return dot.pipe(format="svg").decode("utf-8")
 
