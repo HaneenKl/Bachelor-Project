@@ -153,7 +153,7 @@ def minimal_gens_of_stable(reps, stable):
             st = mul(s, t)
             if st in stable_set and st != s and st != t:
                 decomposable.add(st)
-    gens = set(decomposable - stable_set)
+    gens = set(stable_set - decomposable)
 
     def closure(generators):
         current = set(generators)
