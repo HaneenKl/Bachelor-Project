@@ -30,6 +30,7 @@ def persist_input_from_request():
     mode = request.form.get("mode")
     raw_input = request.form.get("user_input")
     space_mode = request.form.get("space_mode", "off")
+    structure = request.form.get("structure", "semigroup")
 
     if not mode or not raw_input:
         raise ValueError("No input provided")
@@ -38,6 +39,7 @@ def persist_input_from_request():
             raw_input != session.get("last_input")
             or mode != session.get("last_mode")
             or space_mode != session.get("last_space_mode")
+            or structure != session.get("last_structure")
     )
 
     if input_changed:
@@ -61,6 +63,7 @@ def persist_input_from_request():
     session["last_input"] = raw_input
     session["last_mode"] = mode
     session["last_space_mode"] = space_mode
+    session["last_structure"] = structure
 
 
 @app.route("/")
@@ -114,6 +117,7 @@ def clear_history():
         "last_input",
         "last_mode",
         "last_space_mode",
+        "last_structure",
         "processed_input",
         "error",
         "multiplication_table",
