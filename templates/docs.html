@@ -16,9 +16,10 @@
     <section>
         <h2>Introduction</h2>
         <p>
-            This page is designed to allow the user to perform semigroup-related computations using either regular
-            expressions or Arden expressions.
-            The available operations include generating Egg-box diagrams, Cayley graphs, and checking equations based on
+            This page is designed to allow the user to perform computations on semigroups using either regular
+            expressions or Arden equations as an input.
+            The available operations include generating Egg-box diagrams, Cayley graphs, copying the multiplication
+            table in latex code and checking equations based on
             the elements of the semigroup.
         </p>
     </section>
@@ -27,12 +28,12 @@
         <h2>Input Types</h2>
         <p>Users can choose between two input modes:</p>
         <ul>
-            <li><strong>Arden Expression</strong>: This is an input format used for expressing transitions in an
+            <li><strong>Arden Equation</strong>: This is an input format used for expressing transitions in an
                 automaton.
             </li>
             <li><strong>Regular Expression</strong></li>
         </ul>
-        <h3>Arden Expression</h3>
+        <h3>Arden Equations</h3>
         <p>
             In the Arden equation format, each equation defines a transition for a particular state in an automaton.
             Multiple equations can be entered, one per line.
@@ -71,14 +72,18 @@
 
     <section>
         <h2>Operations</h2>
-        <p>After selecting a mode and entering the input, the following computations are available:</p>
+        <p>After selecting a mode and entering the input, the following computations are available for semigroups,
+            monoids and stable subsemigroups:</p>
         <ul>
             <li><strong>Egg-box Diagram</strong>: Generates the Egg-box diagram for the input expression.</li>
-            <li><strong>Left Cayley Graph</strong>: Generates the left Cayley graph for the input expression.</li>
-            <li><strong>Right Cayley Graph</strong>: Generates the right Cayley graph for the input expression.</li>
             <li><strong>Equation Check</strong>: Allows checking whether multiple equations hold based on the semigroup
                 elements.
             </li>
+            <li><strong>Copy Multiplication Table</strong>: Generates a multiplication table in latex code for the
+                semigroup and copies it to the clipboard.
+            </li>
+            <li><strong>Left Cayley Graph</strong>: Generates the left Cayley graph for the input expression.</li>
+            <li><strong>Right Cayley Graph</strong>: Generates the right Cayley graph for the input expression.</li>
         </ul>
     </section>
 
@@ -89,19 +94,20 @@
             be entered on a new line.
         </p>
         <p>
-            The input can include exponentiation or omega expressions such as <code>(x y)^w = z^3 x</code>.
+            The input can include exponentiation, omega or (omega - 1) expressions such as <code>(x y)^w = (z^3
+            x)^(w-1)</code>.
         </p>
 
         <p><strong>Example:</strong></p>
         <pre>
-x^3 y = z^w
+x^3 y = z^(w-1)
 y^2 z = x
-z x = x y^2
+z x = x^(w-1) y^2
 (x y)^3 = z^2
 z^4 = (y^2 z^3 x)^w
 </pre>
         <p>
-            Symbols must be separated by spaces in order to be seen as single symbols.
+            Each equation is evaluated; invalid equations will show a counterexample.
         </p>
 
     </section>
